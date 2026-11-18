@@ -23,10 +23,8 @@ Restart Claude Code (or run `/reload-plugins`) so it loads the plugin. You can a
 The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, named `embrace`). It uses OAuth, so no token is stored in the plugin.
 
 1. Start Claude Code and run `/mcp`.
-2. Select the `plugin:cortex-xcor-rum:embrace` server and choose to authenticate.
+2. Select `plugin:cortex-xcor-rum:embrace` (or `embrace`, if you added the server yourself) and choose to authenticate.
 3. Sign in with your XCOR RUM account in the browser. The token carries your existing app permissions.
-
-You can also sign in from your shell with `claude mcp login plugin:cortex-xcor-rum:embrace`.
 
 If you already added the server yourself with the same URL (for example with `claude mcp add`), Claude Code keeps one connection and you don't need to change anything.
 
@@ -69,11 +67,11 @@ Our React Native app has sessions on iOS but none on Android.
 
 ## Troubleshooting
 
-**The MCP server needs authentication.** Run `/mcp`, select the `plugin:cortex-xcor-rum:embrace` server and authenticate. If the sign-in has expired, authenticate again from the same menu.
+**The MCP server needs authentication.** Run `/mcp`, select `plugin:cortex-xcor-rum:embrace` (or `embrace`, if you added the server yourself) and authenticate. If the sign-in has expired, authenticate again from the same menu.
 
 **The MCP server can't see your app.** The server returns the apps your XCOR RUM user can access, so confirm that you signed in with an account that has access to the app and that you gave the skill the right App ID. With a bearer token, check that the service account has access to the app and that the token has the `mcp:tools:call` scope plus `mcp:read` and/or `mcp:write`.
 
-**A skill says the knowledge base is missing.** The doctor skills read a knowledge-base file that ships beside each `SKILL.md`. Until the knowledge-base files are published in a plugin release, the skills stop and say so instead of guessing. Update the plugin once the release is out.
+**A skill says the knowledge base is missing.** The doctor skills read a knowledge-base file that ships beside each `SKILL.md`. Until the knowledge-base files are published in a plugin release, the skills stop and say so instead of guessing. Update the plugin once the release is out. Reinstalling the plugin won't restore the knowledge base until then.
 
 **You don't see a new release.** Claude Code doesn't update plugins from this marketplace automatically unless you turn on auto-update for it in `/plugin` under Marketplaces. Follow the update steps below.
 
@@ -100,10 +98,6 @@ The plugin sends no data on its own. After you sign in to the MCP server, Claude
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a skill, bump the version and test changes locally.
-
-## Credits
-
-The doctor skills were written by Nelson Puglisi (Android) and Sergio Rodriguez (iOS).
 
 ## License
 

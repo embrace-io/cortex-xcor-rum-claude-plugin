@@ -16,7 +16,7 @@ plugins/cortex-xcor-rum/skills/<name>/SKILL.md
 4. Add the skill to the table in the root `README.md`, with its command and what it covers, and to the skill list in `plugins/cortex-xcor-rum/README.md`.
 5. Add keywords to `plugins/cortex-xcor-rum/.claude-plugin/plugin.json` if the skill covers a new area.
 6. Keep the plugin `description` in `plugin.json` and in `.claude-plugin/marketplace.json` general. The plugin holds all of our Claude skills, so the descriptions don't name a single skill.
-7. Bump the version (below) and add an entry to `CHANGELOG.md`.
+7. Bump the version (below) and add an entry to `CHANGELOG.md`. Mark it `Unreleased` in the heading, and replace that with the release date (YYYY-MM-DD) when the version ships.
 
 ## Versioning
 
