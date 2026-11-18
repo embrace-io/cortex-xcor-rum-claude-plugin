@@ -3,7 +3,7 @@
   "name": "cortex-xcor-rum",
   "description": "Claude Code plugins for working with Cortex XCOR RUM's mobile SDKs.",
   "owner": {
-    "name": "Embrace",
+    "name": "Cortex XCOR RUM",
     "email": "soleng@embrace.io"
   },
   "plugins": [
