@@ -1,3 +1,9 @@
+<picture>
+  <source srcset="assets/cortex-xcor-dark-bg.svg" media="(prefers-color-scheme: dark)" />
+  <source srcset="assets/cortex-xcor-light-bg.svg" media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)" />
+  <img src="assets/cortex-xcor-light-bg.svg" alt="Cortex XCOR Real User Monitoring" width="334" />
+</picture>
+
 # Cortex XCOR RUM plugin for Claude Code
 
 This repository is a Claude Code plugin marketplace for Cortex XCOR RUM (Real User Monitoring), formerly Embrace. It publishes one plugin, `cortex-xcor-rum`, which holds our Claude skills and connects Claude Code to the XCOR RUM MCP server so the skills can read your app's data.
