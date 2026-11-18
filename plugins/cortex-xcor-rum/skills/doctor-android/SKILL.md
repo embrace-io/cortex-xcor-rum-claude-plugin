@@ -72,7 +72,7 @@ For each escalation, produce:
 
 ## Requirements
 
-The XCOR RUM MCP server must be configured in the user's Claude Code setup for the `mcp_checks` step to work. Without it, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
+The plugin configures the XCOR RUM MCP server. Only if its tools are unavailable does the user need to sign in with `/mcp` (OAuth) before the `mcp_checks` step can work. Until then, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
 
 The server can also be connected but unable to see the user's app: `list_apps` doesn't list it, or `get_app_details` reports that the app does not exist. Treat that the same way. Tell the user which App ID you tried and that their XCOR RUM MCP connection has no access to it, then continue with `repo_checks` only. Don't switch to a different app.
 
