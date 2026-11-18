@@ -2,7 +2,7 @@
   "name": "cortex-xcor-rum",
   "displayName": "Cortex XCOR RUM",
   "description": "Skills for working with Cortex XCOR RUM's iOS and Android SDKs in Claude Code, using your app's data through the XCOR RUM MCP server.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": {
     "name": "Cortex XCOR RUM",
     "email": "support@embrace.io",

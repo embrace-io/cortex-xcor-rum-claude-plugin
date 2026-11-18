@@ -1,0 +1,110 @@
+# Cortex XCOR RUM plugin for Claude Code
+
+This repository is a Claude Code plugin marketplace for Cortex XCOR RUM (XCOR RUM, formerly Embrace). It publishes one plugin, `cortex-xcor-rum`, which holds our Claude skills and connects Claude Code to the XCOR RUM MCP server so the skills can read your app's data.
+
+## Prerequisites
+
+- [Claude Code](https://code.claude.com/docs/en/overview)
+- An XCOR RUM account with access to at least one app
+
+## Install
+
+Add the marketplace, then install the plugin from it:
+
+```bash
+claude plugin marketplace add embrace-io/embrace-claude-plugin
+claude plugin install cortex-xcor-rum@cortex-xcor-rum
+```
+
+Restart Claude Code (or run `/reload-plugins`) so it loads the plugin. You can also run both steps inside a session with `/plugin marketplace add` and `/plugin install`.
+
+## Sign in to the MCP server
+
+The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, named `embrace`). It uses OAuth, so no token is stored in the plugin.
+
+1. Start Claude Code and run `/mcp`.
+2. Select the `plugin:cortex-xcor-rum:embrace` server and choose to authenticate.
+3. Sign in with your XCOR RUM account in the browser. The token carries your existing app permissions.
+
+You can also sign in from your shell with `claude mcp login plugin:cortex-xcor-rum:embrace`.
+
+If you already added the server yourself with the same URL (for example with `claude mcp add`), Claude Code keeps one connection and you don't need to change anything.
+
+For CI jobs or shared tooling, use a service-account bearer token instead. Create the token and add the server as described in the [XCOR RUM MCP docs](https://embrace.io/docs/mcp/):
+
+```bash
+claude mcp add --transport http embrace https://mcp.embrace.io/mcp \
+  --header "Authorization: Bearer ${EMBRACE_API_TOKEN}"
+```
+
+## Skills
+
+The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:<name>`, and Claude also loads one on its own when your request matches its description.
+
+| Skill | What it covers |
+| :- | :- |
+| `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, React Native, Flutter, Unity and Web, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
+| `/cortex-xcor-rum:doctor-android` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
+
+Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
+
+The doctor skills need knowledge-base files that a later plugin release adds. Until then, each skill stops at its first step and reports that its knowledge base is missing.
+
+## Example prompts
+
+Call a skill by name and describe the problem:
+
+```text
+/cortex-xcor-rum:doctor-ios crashes aren't symbolicated since we moved to Xcode Cloud
+/cortex-xcor-rum:doctor-android NDK crashes stopped after upgrading to 7.x
+```
+
+Or describe the problem in plain language and let Claude pick the skill:
+
+```text
+Crashes stopped showing up in the XCOR RUM dashboard for our iOS app.
+Mapping file upload fails on CI after our AGP 8 upgrade.
+Our React Native app has sessions on iOS but none on Android.
+```
+
+## Troubleshooting
+
+**The MCP server needs authentication.** Run `/mcp`, select the `plugin:cortex-xcor-rum:embrace` server and authenticate. If the sign-in has expired, authenticate again from the same menu.
+
+**The MCP server can't see your app.** The server returns the apps your XCOR RUM user can access, so confirm that you signed in with an account that has access to the app and that you gave the skill the right App ID. With a bearer token, check that the service account has access to the app and that the token has the `mcp:tools:call` scope plus `mcp:read` and/or `mcp:write`.
+
+**A skill says the knowledge base is missing.** The doctor skills read a knowledge-base file that ships beside each `SKILL.md`. Until the knowledge-base files are published in a plugin release, the skills stop and say so instead of guessing. Update the plugin once the release is out.
+
+**You don't see a new release.** Claude Code doesn't update plugins from this marketplace automatically unless you turn on auto-update for it in `/plugin` under Marketplaces. Follow the update steps below.
+
+## Update and uninstall
+
+Update the marketplace listing, then the plugin, and restart Claude Code to apply it:
+
+```bash
+claude plugin marketplace update cortex-xcor-rum
+claude plugin update cortex-xcor-rum@cortex-xcor-rum
+```
+
+To uninstall, remove the plugin and, if you no longer want its listing, the marketplace:
+
+```bash
+claude plugin uninstall cortex-xcor-rum@cortex-xcor-rum
+claude plugin marketplace remove cortex-xcor-rum
+```
+
+## Privacy
+
+The plugin sends no data on its own. After you sign in to the MCP server, Claude Code requests your app's data from XCOR RUM when a skill or prompt calls the server's tools, and passes the results to Claude. See the [privacy policy](https://embrace.io/docs/privacy-policy) for how XCOR RUM handles data.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a skill, bump the version and test changes locally.
+
+## Credits
+
+The doctor skills were written by Nelson Puglisi (Android) and Sergio Rodriguez (iOS).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
