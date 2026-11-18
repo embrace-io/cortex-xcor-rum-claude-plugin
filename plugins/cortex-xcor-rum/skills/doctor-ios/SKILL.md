@@ -1,6 +1,6 @@
 ---
 name: doctor-ios
-description: Use when the user describes a Cortex XCOR RUM (formerly Embrace) Mobile SDK integration issue on iOS, React Native, Flutter, Unity, or Web, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading Embrace," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for Embrace tech support. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
+description: Use when the user describes a Cortex XCOR RUM (formerly Embrace) Mobile SDK integration issue on iOS, React Native, Flutter, Unity, or Web, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading the XCOR RUM SDK," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their XCOR RUM backend data (via the XCOR RUM MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for XCOR RUM tech support. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
 ---
 
 # Cortex XCOR RUM Doctor (iOS)
