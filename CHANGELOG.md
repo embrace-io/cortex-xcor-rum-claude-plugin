@@ -10,6 +10,7 @@ First release of the consolidated plugin.
 
 - One `cortex-xcor-rum` plugin with the `doctor-ios` and `doctor-android` skills, invoked as `/cortex-xcor-rum:doctor-ios` and `/cortex-xcor-rum:doctor-android`.
 - The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, OAuth) in `.mcp.json`.
+- A listing icon at `.claude-plugin/icon.png`: the Cortex XCOR mark on a dark 1024 px square.
 - `privacyPolicyUrl` in `plugin.json`.
 - Root and plugin READMEs covering install, MCP sign-in, skills, example prompts, troubleshooting, updates and privacy.
 - `LICENSE` (Apache-2.0), `CONTRIBUTING.md` and this changelog.
