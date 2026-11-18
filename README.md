@@ -101,7 +101,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a skill, bump the version 
 
 ## Trademarks
 
-CORTEX XCOR™ is a trademark of Palo Alto Networks, Inc. This plugin is built for Claude Code by the Cortex XCOR RUM team. It is not an official Anthropic repository, and Anthropic does not maintain or endorse it.
+CORTEX XCOR™ is our trademark. This plugin is built for Claude Code by the Cortex XCOR RUM team. It is not an official Anthropic repository, and Anthropic does not maintain or endorse it.
 
 ## License
 
