@@ -8,8 +8,8 @@
     "email": "support@embrace.io",
     "url": "https://embrace.io"
   },
-  "homepage": "https://github.com/embrace-io/embrace-claude-plugin",
-  "repository": "https://github.com/embrace-io/embrace-claude-plugin",
+  "homepage": "https://github.com/embrace-io/cortex-xcor-rum-claude-plugin",
+  "repository": "https://github.com/embrace-io/cortex-xcor-rum-claude-plugin",
   "license": "Apache-2.0",
   "keywords": ["xcor-rum", "embrace", "rum", "mobile", "ios", "android", "sdk", "mcp", "observability", "troubleshooting", "crash-reporting"]
 }
