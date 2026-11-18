@@ -16,7 +16,7 @@ You are helping an Embrace customer triage an SDK integration issue before they 
 
 ## Procedure
 
-1. **Load the index.** Read `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question.
+1. **Load the index.** Read `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question. If the file can't be read, stop: tell the user that this skill's knowledge base is missing from their install of the `cortex-xcor-rum` plugin and that reinstalling the plugin should restore it. Don't search the repo for the file, and don't diagnose without it.
 
 2. **Match the user's description against `symptoms`.** Fuzzy match is fine — "GraphQL calls are missing" should match an entry whose symptoms mention "graphql not captured." If multiple entries plausibly match, pick the most specific and hold the others as fallbacks.
 
@@ -71,4 +71,6 @@ For each escalation, produce:
 ## Requirements
 
 The Embrace MCP server must be configured in the user's Claude Code setup for the `mcp_checks` step to work. Without it, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
+
+The server can also be connected but unable to see the user's app: `list_apps` doesn't list it, or `get_app_details` reports that the app does not exist. Treat that the same way. Tell the user which App ID you tried and that their Embrace MCP connection has no access to it, then continue with `repo_checks` only. Don't switch to a different app.
 
