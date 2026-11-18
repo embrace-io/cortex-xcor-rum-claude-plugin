@@ -1,6 +1,6 @@
 # Cortex XCOR RUM plugin for Claude Code
 
-This repository is a Claude Code plugin marketplace for Cortex XCOR RUM (XCOR RUM, formerly Embrace). It publishes one plugin, `cortex-xcor-rum`, which holds our Claude skills and connects Claude Code to the XCOR RUM MCP server so the skills can read your app's data.
+This repository is a Claude Code plugin marketplace for Cortex XCOR RUM (Real User Monitoring), formerly Embrace. It publishes one plugin, `cortex-xcor-rum`, which holds our Claude skills and connects Claude Code to the XCOR RUM MCP server so the skills can read your app's data.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ This repository is a Claude Code plugin marketplace for Cortex XCOR RUM (XCOR RU
 Add the marketplace, then install the plugin from it:
 
 ```bash
-claude plugin marketplace add embrace-io/embrace-claude-plugin
+claude plugin marketplace add embrace-io/cortex-xcor-rum-claude-plugin
 claude plugin install cortex-xcor-rum@cortex-xcor-rum
 ```
 
@@ -98,6 +98,10 @@ The plugin sends no data on its own. After you sign in to the MCP server, Claude
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a skill, bump the version and test changes locally.
+
+## Trademarks
+
+CORTEX XCOR™ is a trademark of Palo Alto Networks, Inc. This plugin is built for Claude Code by the Cortex XCOR RUM team. It is not an official Anthropic repository, and Anthropic does not maintain or endorse it.
 
 ## License
 

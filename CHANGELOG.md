@@ -26,6 +26,6 @@ If you added the old `embrace-claude-plugin` marketplace or installed `embrace-d
 
 ```bash
 claude plugin marketplace remove embrace-claude-plugin
-claude plugin marketplace add embrace-io/embrace-claude-plugin
+claude plugin marketplace add embrace-io/cortex-xcor-rum-claude-plugin
 claude plugin install cortex-xcor-rum@cortex-xcor-rum
 ```
