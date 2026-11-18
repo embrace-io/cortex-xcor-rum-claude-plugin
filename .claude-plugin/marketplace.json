@@ -1,35 +1,16 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "embrace-claude-plugin",
-  "description": "Embrace Claude Code public plugin.",
+  "name": "cortex-xcor-rum",
+  "description": "Claude Code plugins for working with Cortex XCOR RUM's mobile SDKs.",
   "owner": {
-    "name": "Embrace",
+    "name": "Cortex XCOR RUM",
     "email": "soleng@embrace.io"
-  },
-  "source": {
-    "source": "github",
-    "repo": ""
   },
   "plugins": [
     {
-      "name": "embrace-doctor-android",
-      "description": "",
-      "version": "1.0.0",
-      "author": {
-        "name": "Nelson Puglisi"
-      },
-      "source": "./plugins/embrace-doctor-android",
-      "category": "troubleshooting"
-    },
-    {
-      "name": "embrace-doctor-ios",
-      "description": "",
-      "version": "1.0.0",
-      "author": {
-        "name": "Sergio Rodriguez"
-      },
-      "source": "./plugins/embrace-doctor-ios",
-      "category": "troubleshooting"
+      "name": "cortex-xcor-rum",
+      "source": "./plugins/cortex-xcor-rum",
+      "category": "development"
     }
   ]
 }
