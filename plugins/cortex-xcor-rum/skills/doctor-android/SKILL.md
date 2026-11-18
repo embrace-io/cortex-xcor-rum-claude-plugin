@@ -1,6 +1,6 @@
 ---
-name: embrace-doctor-android
-description: Use when the user describes an Embrace Android SDK integration issue on native Android or the Android side of React Native — e.g. "NDK crashes stopped after upgrading to 7.x," "mapping/symbol upload fails on CI," "NoSuchMethodError in StreamHandlerFactory," "no sessions or only background sessions," "embrace-config.json stripped after AGP 8 upgrade," "OkHttp version conflict after Embrace upgrade," "RN Android has no sessions but iOS does," "FCM push title/body missing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or a clean escalation to Embrace tech support. iOS-specific issues are out of scope — the embrace-doctor-ios skill covers those.
+name: doctor-android
+description: Use when the user describes an Embrace Android SDK integration issue on native Android or the Android side of React Native, for example "NDK crashes stopped after upgrading to 7.x," "mapping/symbol upload fails on CI," "NoSuchMethodError in StreamHandlerFactory," "no sessions or only background sessions," "embrace-config.json stripped after AGP 8 upgrade," "OkHttp version conflict after Embrace upgrade," "RN Android has no sessions but iOS does," or "FCM push title/body missing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for Embrace tech support. iOS-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-ios`.
 ---
 
 # Embrace Doctor (Android)
@@ -11,12 +11,12 @@ You are helping an Embrace customer triage an Android SDK integration issue befo
 
 - **The user's repo** — read via `Read`, search via `Grep` and `Glob`. Key Android files: `app/build.gradle` / `build.gradle.kts`, `settings.gradle`, `gradle.properties`, `AndroidManifest.xml`, `embrace-config.json`, the `Application` subclass, and (for React Native) `package.json` plus the `android/` project tree.
 - **The user's Embrace backend data** — query via the Embrace MCP server tools (`get_app_details`, `list_crashes`, `get_crash_details`, `get_crash_stack_samples`, `get_crash_distribution`, `get_session_distribution`, `list_logs`, `get_log_distribution`, `list_root_spans`, `get_top_versions`, etc.). Ask for their App ID if you don't have it.
-- **Knowledge base** — `MCP_SKILL_QA_INDEX.yaml` in the same folder as this skill. It contains 12 entries for recurring Android and Android+RN tech-support patterns; each entry has `symptoms`, `repo_checks`, `mcp_checks`, `canonical_answer`, `escalate_if`, and `escalation_template`.
-- **Optional background** — `MCP_SKILL_TECHSUPPORT_PATTERNS.md` in the same folder. Read this only if the user asks why these particular patterns, or if you need category context.
+- **Knowledge base** — `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml`. It contains 12 entries for recurring Android and Android+RN tech-support patterns; each entry has `symptoms`, `repo_checks`, `mcp_checks`, `canonical_answer`, `escalate_if`, and `escalation_template`.
+- **Optional background** — `${CLAUDE_SKILL_DIR}/MCP_SKILL_TECHSUPPORT_PATTERNS.md`. Read this only if the user asks why these particular patterns, or if you need category context.
 
 ## Procedure
 
-1. **Load the index.** Read `MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question.
+1. **Load the index.** Read `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question.
 
 2. **Match the user's description against `symptoms`.** Fuzzy match is fine — "native crashes stopped after the upgrade" should match an entry whose symptoms mention "no NDK crashes after upgrade." If multiple entries plausibly match, pick the most specific and hold the others as fallbacks.
 
@@ -68,16 +68,7 @@ For each escalation, produce:
 - Query non-Embrace services (Crashlytics, Firebase, Sentry, Bugsnag, Datadog). If those are needed for comparison, flag that to the user.
 - Replace the Embrace tech-support team for novel issues. It's a first-pass filter for recurring patterns only.
 
-## Installation
-
-Copy this folder's contents to `~/.claude/skills/embrace-doctor-android/`:
-
-```
-~/.claude/skills/embrace-doctor-android/
-├── SKILL.md                            (this file)
-├── MCP_SKILL_QA_INDEX.yaml             (knowledge base — required)
-└── MCP_SKILL_TECHSUPPORT_PATTERNS.md   (background — optional)
-```
+## Requirements
 
 The Embrace MCP server must be configured in the user's Claude Code setup for the `mcp_checks` step to work. Without it, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
 

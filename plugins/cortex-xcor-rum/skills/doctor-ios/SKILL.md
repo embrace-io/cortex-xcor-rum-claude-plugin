@@ -1,6 +1,6 @@
 ---
-name: embrace-doctor-ios
-description: Use when the user describes an Embrace Mobile SDK integration issue on iOS, React Native, Flutter, Unity, or Web — e.g. "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading Embrace," "SwiftUI views not tracked," "FCM push crash," "dSYM upload failing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or a clean escalation to Embrace tech support. Android-specific issues are out of scope — a separate Android troubleshooting skill covers those.
+name: doctor-ios
+description: Use when the user describes an Embrace Mobile SDK integration issue on iOS, React Native, Flutter, Unity, or Web, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading Embrace," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for Embrace tech support. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
 ---
 
 # Embrace Doctor (iOS)
@@ -11,12 +11,12 @@ You are helping an Embrace customer triage an SDK integration issue before they 
 
 - **The user's repo** — read via `Read`, search via `Grep` and `Glob`.
 - **The user's Embrace backend data** — query via the Embrace MCP server tools (`get_app_details`, `list_network_endpoints`, `list_crashes`, `get_crash_details`, `list_logs`, `list_root_spans`, etc.). Ask for their App ID if you don't have it.
-- **Knowledge base** — `MCP_SKILL_QA_INDEX.yaml` in the same folder as this skill. It contains 24 entries for recurring tech-support patterns; each entry has `symptoms`, `repo_checks`, `mcp_checks`, `canonical_answer`, `escalate_if`, and `escalation_template`.
-- **Optional background** — `MCP_SKILL_TECHSUPPORT_PATTERNS.md` in the same folder. Read this only if the user asks why these particular patterns, or if you need category context.
+- **Knowledge base** — `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml`. It contains 24 entries for recurring tech-support patterns; each entry has `symptoms`, `repo_checks`, `mcp_checks`, `canonical_answer`, `escalate_if`, and `escalation_template`.
+- **Optional background** — `${CLAUDE_SKILL_DIR}/MCP_SKILL_TECHSUPPORT_PATTERNS.md`. Read this only if the user asks why these particular patterns, or if you need category context.
 
 ## Procedure
 
-1. **Load the index.** Read `MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question.
+1. **Load the index.** Read `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question.
 
 2. **Match the user's description against `symptoms`.** Fuzzy match is fine — "GraphQL calls are missing" should match an entry whose symptoms mention "graphql not captured." If multiple entries plausibly match, pick the most specific and hold the others as fallbacks.
 
@@ -68,16 +68,7 @@ For each escalation, produce:
 - Query non-Embrace services (Datadog, Firebase, Grafana). If those are needed, flag that to the user.
 - Replace the Embrace tech-support team for novel issues. It's a first-pass filter for recurring patterns only.
 
-## Installation
-
-Copy this folder's contents to `~/.claude/skills/embrace-doctor-ios/`:
-
-```
-~/.claude/skills/embrace-doctor-ios/
-├── SKILL.md                            (this file)
-├── MCP_SKILL_QA_INDEX.yaml             (knowledge base — required)
-└── MCP_SKILL_TECHSUPPORT_PATTERNS.md   (background — optional)
-```
+## Requirements
 
 The Embrace MCP server must be configured in the user's Claude Code setup for the `mcp_checks` step to work. Without it, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
 
