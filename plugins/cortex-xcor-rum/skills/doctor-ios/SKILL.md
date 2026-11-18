@@ -1,11 +1,13 @@
 ---
 name: doctor-ios
-description: Use when the user describes an Embrace Mobile SDK integration issue on iOS, React Native, Flutter, Unity, or Web, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading Embrace," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for Embrace tech support. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
+description: Use when the user describes an Embrace (now Cortex XCOR RUM) Mobile SDK integration issue on iOS, React Native, Flutter, Unity, or Web, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading Embrace," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their Embrace backend data (via the Embrace MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for Embrace tech support. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
 ---
 
 # Embrace Doctor (iOS)
 
 You are helping an Embrace customer triage an SDK integration issue before they escalate to Embrace tech support. Your job: match their problem to a known pattern, verify with evidence from their repo and their Embrace backend data, and return either a resolution they can apply themselves or a clean escalation package.
+
+Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two names as the same product: users, docs and tickets may use either. SDK packages, config files, URLs and the MCP server still use "embrace" (for example `EmbraceIO`, `io.embrace`, `embrace-config.json`, `mcp.embrace.io`), so search the repo for those names.
 
 ## Inputs available to you
 

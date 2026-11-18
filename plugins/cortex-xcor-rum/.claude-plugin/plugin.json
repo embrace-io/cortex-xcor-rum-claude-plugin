@@ -1,7 +1,7 @@
 {
   "name": "cortex-xcor-rum",
   "displayName": "Cortex XCOR RUM",
-  "description": "Skills for working with Embrace's iOS and Android SDKs in Claude Code, using your app's Embrace data through the Embrace MCP server.",
+  "description": "Skills for working with Cortex XCOR RUM's iOS and Android SDKs in Claude Code, using your app's data through the XCOR RUM MCP server.",
   "version": "1.0.0",
   "author": {
     "name": "Embrace.io",
@@ -11,5 +11,5 @@
   "homepage": "https://github.com/embrace-io/embrace-claude-plugin",
   "repository": "https://github.com/embrace-io/embrace-claude-plugin",
   "license": "Apache-2.0",
-  "keywords": ["embrace", "rum", "mobile", "ios", "android", "sdk", "mcp", "observability", "troubleshooting", "crash-reporting"]
+  "keywords": ["xcor-rum", "embrace", "rum", "mobile", "ios", "android", "sdk", "mcp", "observability", "troubleshooting", "crash-reporting"]
 }

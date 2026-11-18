@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "cortex-xcor-rum",
-  "description": "Claude Code plugins for working with Embrace's mobile SDKs.",
+  "description": "Claude Code plugins for working with Cortex XCOR RUM's mobile SDKs.",
   "owner": {
     "name": "Embrace",
     "email": "soleng@embrace.io"
