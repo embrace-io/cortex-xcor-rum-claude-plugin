@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "embrace": {
+    "xcor-rum": {
       "type": "http",
       "url": "https://mcp.embrace.io/mcp"
     }
