@@ -52,8 +52,6 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
 
-The doctor skills need knowledge-base files that a later plugin release adds. Until then, each skill stops at its first step and reports that its knowledge base is missing.
-
 ## Example prompts
 
 Call a skill by name and describe the problem:
@@ -77,7 +75,7 @@ Our React Native app has sessions on iOS but none on Android.
 
 **The MCP server can't see your app.** The server returns the apps your XCOR RUM user can access, so confirm that you signed in with an account that has access to the app and that you gave the skill the right App ID. With a bearer token, check that the service account has access to the app and that the token has the `mcp:tools:call` scope plus `mcp:read` and/or `mcp:write`.
 
-**A skill says the knowledge base is missing.** The doctor skills read a knowledge-base file that ships beside each `SKILL.md`. Until the knowledge-base files are published in a plugin release, the skills stop and say so instead of guessing. Update the plugin once the release is out. Reinstalling the plugin won't restore the knowledge base until then.
+**A skill says the knowledge base is missing.** Each doctor skill reads `MCP_SKILL_QA_INDEX.yaml` from its own folder in the installed plugin. If that file can't be read, the skill stops instead of guessing. Update or reinstall the plugin to restore it.
 
 **You don't see a new release.** Claude Code doesn't update plugins from this marketplace automatically unless you turn on auto-update for it in `/plugin` under Marketplaces. Follow the update steps below.
 
