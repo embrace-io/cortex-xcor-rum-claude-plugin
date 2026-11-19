@@ -29,8 +29,9 @@ The marketplace, the plugin, the plugin directory and the marketplace entry are 
 - Add new capabilities as skills inside this plugin. A second plugin would give its skills a different prefix and split the users.
 - Never rename the plugin, the marketplace or a published skill. Installed copies are keyed by those names, so a rename breaks existing installs. A removed or renamed skill is a major version bump.
 - The product is Cortex XCOR RUM (Real User Monitoring). In prose, write "Cortex XCOR RUM" on first mention and "XCOR RUM" after that. Add the "formerly" qualifier at most once per file.
-- Keep "Embrace" only where it is a literal name: code identifiers (`Embrace.setup`, `EmbraceIO`), packages (`io.embrace`), files (`embrace-config.json`), URLs and hosts (`embrace.io`, `mcp.embrace.io`, `*.emb-api.com`), the GitHub organization `embrace-io`, environment variable names, the MCP server name `embrace`, and a skill's `symptoms`, because users still say Embrace.
+- Keep "Embrace" only where it is a literal name: code identifiers (`Embrace.setup`, `EmbraceIO`), packages (`io.embrace`), files (`embrace-config.json`), URLs and hosts (`embrace.io`, `mcp.embrace.io`, `*.emb-api.com`), the GitHub organization `embrace-io`, environment variable names, and a skill's `symptoms`, because users still say Embrace.
 - Keep the plugin and marketplace descriptions general. The plugin holds all of our skills, so a description doesn't name one.
+- Name connectors after the product, not the old name: the bundled server's key in `.mcp.json` is `xcor-rum`, which Claude Code shows as `plugin:cortex-xcor-rum:xcor-rum`.
 
 ## Add a skill
 
@@ -75,7 +76,7 @@ A connector is an MCP server declared in `plugins/cortex-xcor-rum/.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "embrace": {
+    "xcor-rum": {
       "type": "http",
       "url": "https://mcp.embrace.io/mcp"
     }

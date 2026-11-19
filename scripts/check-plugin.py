@@ -479,7 +479,7 @@ def build_fixture(root):
     p = PLUGIN_REL
     write(root, ".claude-plugin/marketplace.json", json.dumps({"name": PLUGIN, "plugins": [{"name": PLUGIN, "source": f"./{p}"}]}))
     write(root, f"{p}/.claude-plugin/plugin.json", json.dumps({"name": PLUGIN, "version": "1.0.0", "license": "Apache-2.0"}))
-    write(root, f"{p}/.mcp.json", json.dumps({"mcpServers": {"embrace": {"type": "http", "url": "https://mcp.example.com/mcp"}}}))
+    write(root, f"{p}/.mcp.json", json.dumps({"mcpServers": {"xcor-rum": {"type": "http", "url": "https://mcp.example.com/mcp"}}}))
     write(root, f"{p}/README.md", f"# Demo\n\nSkill `/{PLUGIN}:demo`. " + " ".join(["word"] * 50) + "\n")
     write(root, f"{p}/skills/demo/SKILL.md", GOOD_SKILL)
     write(root, f"{p}/skills/demo/notes.md", "notes\n")
