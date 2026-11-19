@@ -1,4 +1,4 @@
-# Findings that predate scripts/check-plugin.py, one "<check-id> <path>" per line.
+# Findings that predate the standards check in scripts/check_plugin/, one "<check-id> <path>" per line.
 # A baselined finding is a warning, not a failure. Delete a line when its
 # finding is fixed; the script warns about lines that no longer match.
 

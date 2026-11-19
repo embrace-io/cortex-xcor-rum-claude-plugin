@@ -51,7 +51,7 @@ The `directory` profile applies the checks for submitting the plugin to the Anth
 Then run the standards check, which enforces the naming, safety and packaging rules in [AGENTS.md](AGENTS.md):
 
 ```bash
-python3 scripts/check-plugin.py
+python3 -m scripts.check_plugin
 ```
 
-It needs only Python 3, prints `FAIL [check-id] path: message` for each problem and exits 1 if there is one. CI runs it with the validate commands on every pull request.
+It needs only Python 3.10 or later, prints `FAIL [check-id] path: message` for each problem and exits 1 if there is one. CI runs it with the validate commands on every pull request.

@@ -9,7 +9,9 @@
 - [ ] `claude plugin validate --strict .`
 - [ ] `claude plugin validate --strict plugins/cortex-xcor-rum`
 - [ ] `claude plugin validate --profile directory plugins/cortex-xcor-rum`
-- [ ] `python3 scripts/check-plugin.py`
+- [ ] `python3 -m scripts.check_plugin`
+- [ ] `python3 -m unittest`
+- [ ] `black --check .` (only if you changed Python)
 
 ## Checklist
 

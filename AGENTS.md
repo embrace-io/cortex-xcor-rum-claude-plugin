@@ -15,8 +15,10 @@ plugins/cortex-xcor-rum/
   skills/<name>/SKILL.md                   one directory per skill, plus its sibling files
 README.md                                  install, sign-in and skill table for users
 CHANGELOG.md                               one entry per plugin version
-scripts/check-plugin.py                    the standards check (standard library only)
+scripts/check_plugin/                      the standards check (standard library only)
 scripts/check-plugin-baseline.txt          known findings that predate the check
+tests/                                     unit tests for the check
+pyproject.toml                             black settings for the Python above
 .github/workflows/validate.yml             CI: claude plugin validate and the check script
 ```
 
@@ -102,7 +104,7 @@ A connector is an MCP server declared in `plugins/cortex-xcor-rum/.mcp.json`:
 
 `CONTRIBUTING.md` has the semantic versioning rules. Bump `version` in `plugin.json` in every pull request that changes a file under `plugins/cortex-xcor-rum/`, because Claude Code keeps the cached copy until the version string changes. Add a matching `## [x.y.z]` entry to `CHANGELOG.md`, marked `Unreleased` until the version ships.
 
-Version 1.1.1 hasn't shipped, so while it is unreleased, edits to it don't need another bump. The check enforces this: on a pull request, `scripts/check-plugin.py --base origin/<base branch>` fails if plugin files changed and `version` didn't, but only once a tag matching `cortex-xcor-rum--v*` exists. With no such tag it prints a warning. Create the tag when a version ships.
+Version 1.1.1 hasn't shipped, so while it is unreleased, edits to it don't need another bump. The check enforces this: on a pull request, `python3 -m scripts.check_plugin --base origin/<base branch>` fails if plugin files changed and `version` didn't, but only once a tag matching `cortex-xcor-rum--v*` exists. With no such tag it prints a warning. Create the tag when a version ships.
 
 Changes outside the plugin folder (this file, `scripts/`, `.github/`, root docs) need no bump.
 
@@ -114,11 +116,12 @@ Run all of these before opening a pull request. CI runs the same commands in `.g
 claude plugin validate --strict .
 claude plugin validate --strict plugins/cortex-xcor-rum
 claude plugin validate --profile directory plugins/cortex-xcor-rum
-python3 scripts/check-plugin.py
-python3 scripts/check-plugin.py --self-test
+python3 -m scripts.check_plugin
+python3 -m unittest
+black --check .
 ```
 
-`check-plugin.py` needs only Python 3. It prints `FAIL [check-id] path: message` and exits 1 on any failure. Pass a directory to check another tree, and `--base <ref>` for the version check.
+The check needs only Python 3.10 or later. `black` is a development tool, pinned in `.github/workflows/validate.yml`; run `pip install black==26.10.1` to match CI. The check prints `FAIL [check-id] path: message` and exits 1 on any failure. Pass a directory to check another tree, and `--base <ref>` for the version check.
 
 | Check id | What it enforces |
 | :- | :- |
@@ -134,11 +137,16 @@ python3 scripts/check-plugin.py --self-test
 | `docs` | Every skill is in both READMEs, and `CHANGELOG.md` has an entry for the current version. |
 | `version` | Plugin files changed without a version bump (enforced after the first release tag). |
 
-`scripts/check-plugin-baseline.txt` lists findings that existed when the check was added, one `<check-id> <path>` per line. A baselined finding prints as a warning. Don't add a line to hide a new problem. Delete a line when you fix its finding, and the script warns about lines that no longer match.
+`scripts/check-plugin-baseline.txt` lists findings that existed when the check was added, one `<check-id> <path>` per line. A baselined finding prints as a warning. Don't add a line to hide a new problem. Delete a line when you fix its finding, and the check warns about lines that no longer match.
 
 The check can't judge prose. Review product naming, voice and the "no promises" rule yourself.
 
-To add a check, add a function to `scripts/check-plugin.py` and a failing and a passing case to `self_test`, and add the check to the table above.
+To add a check:
+
+1. Write a function in a module under `scripts/check_plugin/checks/`. It takes a `Repo` (see `repo.py`) and yields `Issue(path, message)` for each problem, and `Issue(path, message, Severity.WARN)` for a warning.
+2. Add `Check("<check-id>", check_function)` to `CHECKS` in `scripts/check_plugin/checks/__init__.py`.
+3. Add a failing case to `MUTATIONS` in `tests/test_checks.py`. The test that every registered check has a failing case fails until you do. Add a test to `GoodTreeTests` for any input that must keep passing.
+4. Put new limits and patterns in `scripts/check_plugin/config.py`, and add the check to the table above.
 
 ## Writing style
 
