@@ -26,10 +26,10 @@ Restart Claude Code (or run `/reload-plugins`) so it loads the plugin. You can a
 
 ## Sign in to the MCP server
 
-The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, named `embrace`). It uses OAuth, so no token is stored in the plugin.
+The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, named `xcor-rum`). It uses OAuth, so no token is stored in the plugin.
 
 1. Start Claude Code and run `/mcp`.
-2. Select `plugin:cortex-xcor-rum:embrace` (or `embrace`, if you added the server yourself) and choose to authenticate.
+2. Select `plugin:cortex-xcor-rum:xcor-rum` (or the name you gave it, if you added the server yourself) and choose to authenticate.
 3. Sign in with your XCOR RUM account in the browser. The token carries your existing app permissions.
 
 If you already added the server yourself with the same URL (for example with `claude mcp add`), Claude Code keeps one connection and you don't need to change anything.
@@ -66,7 +66,7 @@ Our React Native app has sessions on iOS but none on Android.
 
 ## Troubleshooting
 
-**The MCP server needs authentication.** Run `/mcp`, select `plugin:cortex-xcor-rum:embrace` (or `embrace`, if you added the server yourself) and authenticate. If the sign-in has expired, authenticate again from the same menu.
+**The MCP server needs authentication.** Run `/mcp`, select `plugin:cortex-xcor-rum:xcor-rum` (or the name you gave it, if you added the server yourself) and authenticate. If the sign-in has expired, authenticate again from the same menu.
 
 **The MCP server can't see your app.** The server returns the apps your XCOR RUM user can access, so confirm that you signed in with an account that has access to the app and that you gave the skill the right App ID. With a bearer token, check that the service account has access to the app and that the token has the `mcp:tools:call` scope plus `mcp:read` and/or `mcp:write`.
 

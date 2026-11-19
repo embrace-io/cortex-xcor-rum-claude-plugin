@@ -9,7 +9,7 @@ claude plugin marketplace add embrace-io/cortex-xcor-rum-claude-plugin
 claude plugin install cortex-xcor-rum@cortex-xcor-rum
 ```
 
-After you install the plugin, run `/mcp` and sign in to `plugin:cortex-xcor-rum:embrace` (or `embrace`, if you added the server yourself) with your XCOR RUM account.
+After you install the plugin, run `/mcp` and sign in to `plugin:cortex-xcor-rum:xcor-rum` (or the name you gave it, if you added the server yourself) with your XCOR RUM account.
 
 The current skills are `/cortex-xcor-rum:doctor-ios` and `/cortex-xcor-rum:doctor-android`, which troubleshoot SDK integration issues on each platform.
 
