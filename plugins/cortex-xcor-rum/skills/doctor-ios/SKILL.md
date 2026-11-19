@@ -64,7 +64,9 @@ For each escalation, produce:
    - **What I checked:** <list of repo paths inspected, MCP tools called>
    - **What I found:** <concrete observations>
    - **Why I'm escalating:** <specific `escalate_if` condition or gap>
-3. A suggested destination (XCOR RUM tech-support Slack channel, or the XCOR RUM community workspace, whichever the user uses).
+3. Where to send it: the user's XCOR RUM tech-support Slack channel if they have one, otherwise the [XCOR RUM community Slack](https://community.embrace.io) or [sg-observability-sales-engineering@paloaltonetworks.com](mailto:sg-observability-sales-engineering@paloaltonetworks.com).
+
+Wherever the index says to contact XCOR RUM support, give the user these same destinations.
 
 ## What this skill does NOT do
 

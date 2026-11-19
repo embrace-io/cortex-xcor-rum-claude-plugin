@@ -79,6 +79,10 @@ Our React Native app has sessions on iOS but none on Android.
 
 **You don't see a new release.** Claude Code doesn't update plugins from this marketplace automatically unless you turn on auto-update for it in `/plugin` under Marketplaces. Follow the update steps below.
 
+## Get help
+
+If a doctor skill escalates or you have a question it can't answer, send the escalation package to your XCOR RUM tech-support Slack channel if you have one. Otherwise, ask in the [XCOR RUM community Slack](https://community.embrace.io) or email [sg-observability-sales-engineering@paloaltonetworks.com](mailto:sg-observability-sales-engineering@paloaltonetworks.com).
+
 ## Update and uninstall
 
 Update the marketplace listing, then the plugin, and restart Claude Code to apply it:
