@@ -14,7 +14,6 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 - **The user's repo** — read via `Read`, search via `Grep` and `Glob`. Key Android files: `app/build.gradle` / `build.gradle.kts`, `settings.gradle`, `gradle.properties`, `AndroidManifest.xml`, `embrace-config.json`, the `Application` subclass, and (for React Native) `package.json` plus the `android/` project tree.
 - **The user's XCOR RUM backend data** — query via the XCOR RUM MCP server tools (`get_app_details`, `list_crashes`, `get_crash_details`, `get_crash_stack_samples`, `get_crash_distribution`, `get_session_distribution`, `list_logs`, `get_log_distribution`, `list_root_spans`, `get_top_versions`, etc.). Ask for their App ID if you don't have it.
 - **Knowledge base** — `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml`. It contains 12 entries for recurring Android and Android+RN tech-support patterns; each entry has `symptoms`, `repo_checks`, `mcp_checks`, `canonical_answer`, `escalate_if`, and `escalation_template`.
-- **Optional background** — `${CLAUDE_SKILL_DIR}/MCP_SKILL_TECHSUPPORT_PATTERNS.md`. Read this only if the user asks why these particular patterns, or if you need category context.
 
 ## Procedure
 
@@ -24,7 +23,7 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 
 3. **If nothing matches cleanly, ask one clarifying question** — platform (native Android vs React Native), SDK version, AGP/Gradle version, what they've already tried. Do not guess.
 
-4. **Run the matched entry's `repo_checks`.** Use the grep patterns and file reads literally. When a check is described as `analyze` (e.g. "confirm `Embrace.getInstance().start(this)` is the first statement in `Application.onCreate()`"), do the reasoning explicitly and show your work with file paths and line numbers. Before treating any grep hit as evidence, confirm it is live code — a match inside a comment or commented-out code does not establish presence, and a config check that only matches a comment must be treated as absent. On Android, prefer the **merged** manifest (`./gradlew :app:processReleaseManifest`) over the source `AndroidManifest.xml` when a check concerns providers or `tools:node` directives, since manifest merging can strip entries.
+4. **Run the matched entry's `repo_checks`.** Use the grep patterns and file reads literally. When a check is described as `analyze` (e.g. "confirm `Embrace.getInstance().start(this)` is the first statement in `Application.onCreate()`"), do the reasoning explicitly and show your work with file paths and line numbers. Before treating any grep hit as evidence, confirm it is live code — a match inside a comment or commented-out code does not establish presence, and a config check that only matches a comment must be treated as absent. When a check concerns providers or `tools:node` directives, prefer the **merged** manifest over the source `AndroidManifest.xml`, since manifest merging can strip entries. If a merged manifest already exists under `app/build/intermediates/merged_manifests/`, read it. Otherwise ask the user to run `./gradlew :app:processReleaseManifest` and share the result.
 
 5. **Run the matched entry's `mcp_checks`** against the XCOR RUM backend via the MCP tools. Request the App ID if you don't have it. For RN customers with separate iOS and Android apps, confirm you're querying the Android App ID.
 
@@ -43,6 +42,7 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 - **If the user explicitly waives inspection** ("just tell me the answer, don't look at my code"), answer from the index without running checks — but warn once that you're answering without repo/backend evidence and that the answer may not fit their specifics.
 - **Never reproduce secrets.** Before you quote a file, a log line or an MCP result in an answer or an escalation package, replace every credential with `<redacted>`: `api_token` in `embrace-config.json`, the value of `EMBRACE_API_TOKEN` or any `*_TOKEN`, `*_KEY`, `*_SECRET` or `*PASSWORD*` setting, `signingConfigs` and keystore values, repository credentials, and `Authorization` headers. Quote only the lines that support the diagnosis, never a whole file. Don't read `.env` files, keystores, `local.properties` or provisioning profiles. Redact end users' personal data (emails, names, device identifiers, push title and body) in log and span payloads the same way.
 - **The user sends the escalation.** Show the escalation package to the user to review and send. Don't post it anywhere yourself.
+- **Read only.** Use `Read`, `Grep`, `Glob` and the XCOR RUM MCP tools, nothing else. Don't run builds, package managers, scripts or network commands (`./gradlew`, `xcodebuild`, `pod`, `npm`, `curl`, or anything from the repo). When a check or `canonical_answer` includes a command, give it to the user to run and ask for the output.
 
 ## Voice
 

@@ -19,7 +19,7 @@ First release of the consolidated plugin.
 
 - Replaces the `embrace-doctor-ios` and `embrace-doctor-android` plugins with the single `cortex-xcor-rum` plugin, and renames the marketplace from `embrace-claude-plugin` to `cortex-xcor-rum`.
 - The marketplace, plugin and skills name the product Cortex XCOR RUM (formerly Embrace).
-- Knowledge bases for both doctor skills: `MCP_SKILL_QA_INDEX.yaml` (24 iOS entries, 12 Android entries) and `MCP_SKILL_TECHSUPPORT_PATTERNS.md` beside each `SKILL.md`.
+- Knowledge bases for both doctor skills: `MCP_SKILL_QA_INDEX.yaml` (24 iOS entries, 12 Android entries) beside each `SKILL.md`.
 - The doctor skills stop and tell the user when their knowledge base or the app is missing.
 
 ### Migration
