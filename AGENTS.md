@@ -139,6 +139,27 @@ The check can't judge prose. Review product naming, voice and the "no promises" 
 
 To add a check, add a function to `scripts/check-plugin.py` and a failing and a passing case to `self_test`, and add the check to the table above.
 
+## Writing style
+
+Follow these rules for every piece of prose in this repository: skill and knowledge-base text, READMEs and other docs, code comments, commit messages and pull request descriptions.
+
+- **Write straightforward technical prose.** Write like an engineer explaining a system to a teammate. Use a period, comma, colon or parentheses instead of an em dash.
+- **Lead with the main point.** State what happens or what was decided first, then explain how it works and why.
+- **Put the subject first.** Write "`plugin.json` sets the version" rather than "The version is set in `plugin.json`."
+- **Use precise terms, not paraphrases.** Name the file, field, tool or command (`version`, `.mcp.json`, `list_apps`) instead of "the thing that holds it".
+- **Use literal verbs.** Write `reads`, `returns`, `calls`, `sends`, `validates`, not metaphors such as "travels", "sits" or "buries".
+- **Explain the mechanism.** Say how something works and how it fails, so the reader can verify the claim.
+- **Distinguish measurements from assumptions.** Say whether a number or behavior was measured ("measured at 40 s per run") or assumed.
+- **Document tradeoffs.** When a choice isn't obvious, note the alternatives you considered and why you didn't pick them.
+- **Don't end with an aphorism or punchline.** State the concrete reason and stop.
+- **Start each section with a complete sentence**, not a fragment that repeats the heading.
+- **Refer to roles and components, not individuals.**
+- **Use American English spelling.**
+
+In code, let clear names explain what the code does, and keep comments for why: invariants, workarounds for a specific bug, external constraints, non-obvious tradeoffs. Cite the concrete failure mode rather than "be careful here".
+
+A commit message has a short imperative subject line and a body that says what changed and why. A pull request uses the template in `.github/pull_request_template.md`: a summary that leads with the change, the testing you ran with its results, and the checklist.
+
 ## What not to do
 
 - Don't create a second plugin or marketplace entry, and don't rename `cortex-xcor-rum`.
