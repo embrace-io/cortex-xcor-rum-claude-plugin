@@ -1,0 +1,50 @@
+name: Validate
+
+# There is no path filter: a required check that a filter skips never reports,
+# and the pull request then waits for it.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The version check diffs against the base branch and looks for release tags.
+          fetch-depth: 0
+
+      # Pinned so the validator doesn't change under a pull request. Raise it
+      # on purpose and confirm the three validate commands still pass.
+      - name: Install Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.328
+          claude --version
+
+      - name: Validate the marketplace
+        run: claude plugin validate --strict .
+
+      - name: Validate the plugin
+        run: claude plugin validate --strict plugins/cortex-xcor-rum
+
+      - name: Validate the plugin against the directory profile
+        run: claude plugin validate --profile directory plugins/cortex-xcor-rum
+
+      - name: Test the check script
+        run: python3 scripts/check-plugin.py --self-test
+
+      - name: Check the repository standards
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            python3 scripts/check-plugin.py --base "origin/$BASE_REF"
+          else
+            python3 scripts/check-plugin.py
+          fi
