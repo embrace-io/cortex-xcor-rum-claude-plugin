@@ -34,12 +34,7 @@ The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, named 
 
 If you already added the server yourself with the same URL (for example with `claude mcp add`), Claude Code keeps one connection and you don't need to change anything.
 
-For CI jobs or shared tooling, use a service-account bearer token instead. Create the token and add the server as described in the [XCOR RUM MCP docs](https://embrace.io/docs/mcp/):
-
-```bash
-claude mcp add --transport http embrace https://mcp.embrace.io/mcp \
-  --header "Authorization: Bearer ${EMBRACE_API_TOKEN}"
-```
+For CI jobs or shared tooling, you can authenticate with a service-account token instead of OAuth. The [XCOR RUM MCP docs](https://embrace.io/docs/mcp/) describe how to create one and add the server with it.
 
 ## Skills
 
