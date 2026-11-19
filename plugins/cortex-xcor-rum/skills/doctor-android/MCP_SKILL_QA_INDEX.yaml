@@ -274,8 +274,7 @@ entries:
       that the wrapper does not currently handle, surfacing as a NoSuchMethodError at
       the `openConnection` frame.
 
-      This is a known open investigation and there is no in-product fix at the
-      moment.
+      This is a known issue with no fix in the current SDK.
     repo_checks:
       - type: grep
         pattern: "firebase-storage|firebase-auth"
@@ -292,7 +291,7 @@ entries:
       - tool: get_crash_stack_samples
         purpose: Pull a representative stack to attach to the escalation.
     canonical_answer: |
-      This is a known open investigation. The crash happens inside our
+      This is a known issue. The crash happens inside our
       HttpURLConnection instrumentation when certain Firebase classes (Storage, Auth)
       call into our `openConnection` wrapper through a reflective path we don't yet
       handle.
@@ -777,7 +776,7 @@ entries:
     canonical_answer: |
       On RN + Android, the cold-startup span count can be far below the session
       count. There is no confirmed root cause or workaround, so this is a known
-      open investigation.
+      issue.
 
       Two things worth confirming on your side:
 

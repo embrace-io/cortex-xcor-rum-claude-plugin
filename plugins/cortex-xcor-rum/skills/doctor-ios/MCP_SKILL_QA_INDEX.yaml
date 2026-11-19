@@ -602,6 +602,7 @@ entries:
       - "downloads failing after SDK upgrade"
       - "m3u8 / mp3 / streaming broken"
       - "works when we remove URLSessionCaptureService"
+      - "use_legacy_urlsession_proxy"
     root_cause: |
       The SDK has two URLSession proxy implementations, and which one an app uses is
       a server-side setting. Certain streaming/download patterns (AVPlayer-adjacent,

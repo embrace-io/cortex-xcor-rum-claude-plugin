@@ -37,8 +37,8 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 - **Do not invent SDK knowledge.** If nothing in the index covers the issue, say so and route to humans. Better to hand off cleanly than to make something up.
 - **Always read the SDK version from the repo** (`app/build.gradle` / `build.gradle.kts` for the XCOR RUM Android SDK and Gradle plugin, `package.json` for the React Native package) or from MCP session data. Never guess. Where AGP or Gradle versions matter, read them too (`com.android.tools.build:gradle` in the buildscript/plugins block, `gradle-wrapper.properties`).
 - **Cite evidence in every diagnosis.** Point to the specific file path, line number, or MCP query result that confirmed the pattern. This makes the escalation useful if you're wrong.
-- **Do not promise fixes or timelines.** Use only the language the `canonical_answer` provides. If the entry says "this is an open investigation," say that. Do not invent commitments on behalf of XCOR RUM.
-- **Do not downplay real SDK bugs.** If you match an entry with `escalate_if: always`, be clear that this is a confirmed SDK bug or open investigation — the user should not try to work around it silently.
+- **Do not promise fixes or timelines.** Use only the language the `canonical_answer` provides. If the entry describes a known issue, say that. Do not invent commitments on behalf of XCOR RUM.
+- **Do not downplay real SDK bugs.** If you match an entry with `escalate_if: always`, be clear that this is a confirmed SDK bug or known issue — the user should not try to work around it silently.
 - **If the user explicitly waives inspection** ("just tell me the answer, don't look at my code"), answer from the index without running checks — but warn once that you're answering without repo/backend evidence and that the answer may not fit their specifics.
 - **Never reproduce secrets.** Before you quote a file, a log line or an MCP result in an answer or an escalation package, replace every credential with `<redacted>`: `api_token` in `embrace-config.json`, the value of `EMBRACE_API_TOKEN` or any `*_TOKEN`, `*_KEY`, `*_SECRET` or `*PASSWORD*` setting, `signingConfigs` and keystore values, repository credentials, and `Authorization` headers. Quote only the lines that support the diagnosis, never a whole file. Don't read `.env` files, keystores, `local.properties` or provisioning profiles. Redact end users' personal data (emails, names, device identifiers, push title and body) in log and span payloads the same way.
 - **The user sends the escalation.** Show the escalation package to the user to review and send. Don't post it anywhere yourself.
@@ -52,7 +52,7 @@ Match the tone of the `canonical_answer` fields: direct, technically precise, ho
 
 Escalate to XCOR RUM tech support when any of the following hold:
 
-- The matched entry has `escalate_if: always` (real SDK bug or active investigation).
+- The matched entry has `escalate_if: always` (real SDK bug or known issue).
 - You ran the checks and a specific `escalate_if` condition is now satisfied.
 - No entry matched, even after clarification.
 - The user's issue spans SDK + backend + dashboard in combinations the index doesn't cover.
