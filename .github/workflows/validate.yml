@@ -1,0 +1,64 @@
+name: Validate
+
+# There is no path filter: a required check that a filter skips never reports,
+# and the pull request then waits for it.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The version check diffs against the base branch and looks for release tags.
+          fetch-depth: 0
+
+      # Pinned so the validator doesn't change under a pull request. Raise it
+      # on purpose and confirm the three validate commands still pass.
+      - name: Install Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.328
+          claude --version
+
+      - name: Validate the marketplace
+        run: claude plugin validate --strict .
+
+      - name: Validate the plugin
+        run: claude plugin validate --strict plugins/cortex-xcor-rum
+
+      - name: Validate the plugin against the directory profile
+        run: claude plugin validate --profile directory plugins/cortex-xcor-rum
+
+      # The oldest Python the check supports, so a newer syntax feature fails
+      # here and not on a contributor's machine.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.10"
+
+      - name: Test the check
+        run: python3 -m unittest
+
+      - name: Check the repository standards
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            python3 -m scripts.check_plugin --base "origin/$BASE_REF"
+          else
+            python3 -m scripts.check_plugin
+          fi
+
+      # black is a development tool and not a runtime dependency of the check.
+      # The version is pinned so a new release doesn't reformat the code under
+      # an open pull request.
+      - name: Check Python formatting
+        run: |
+          python3 -m pip install black==26.10.1
+          black --check .

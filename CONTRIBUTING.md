@@ -46,4 +46,20 @@ claude plugin validate --strict plugins/cortex-xcor-rum
 claude plugin validate --profile directory plugins/cortex-xcor-rum
 ```
 
-The `directory` profile applies the checks for submitting the plugin to the Anthropic plugin directory. A missing icon is the only warning we expect from it until the icon is added.
+The `directory` profile applies the checks for submitting the plugin to the Anthropic plugin directory. It should report nothing.
+
+Then run the standards check, which enforces the naming, safety and packaging rules in [AGENTS.md](AGENTS.md):
+
+```bash
+python3 -m scripts.check_plugin
+```
+
+It needs only Python 3.10 or later, prints `FAIL [check-id] path: message` for each problem and exits 1 if there is one. CI runs it with the validate commands on every pull request.
+
+To test a branch the way a user installs it, add the marketplace at that git ref and install from it. Remove an existing `cortex-xcor-rum` marketplace first, because Claude Code refuses to add the same marketplace from a different source:
+
+```bash
+claude plugin marketplace remove cortex-xcor-rum
+claude plugin marketplace add 'https://github.com/embrace-io/cortex-xcor-rum-claude-plugin.git#<branch>'
+claude plugin install cortex-xcor-rum@cortex-xcor-rum
+```
