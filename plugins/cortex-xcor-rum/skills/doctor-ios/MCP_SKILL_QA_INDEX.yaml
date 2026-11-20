@@ -1,0 +1,1148 @@
+# XCOR RUM MCP Skill — Canonical Q&A Index
+#
+# Each entry is a recurring customer question. The skill matches customer intent
+# against `symptoms`, runs `repo_checks` against their code (Claude Code
+# Read/Grep/Glob), optionally confirms with `mcp_checks` (XCOR RUM MCP server
+# tools), then returns `canonical_answer`. If any `escalate_if` condition holds,
+# route to XCOR RUM support with a filled-in `escalation_template`.
+#
+# Schema
+#   id:                  unique slug
+#   title:               one-line human title
+#   category:            symbolication | network-capture | linking | swiftui |
+#                        rn | push | options-ergonomics | session | size |
+#                        crashes
+#   platforms:           ios | react-native | flutter | unity | web
+#                        (Android has its own troubleshooting skill — Android-only
+#                        patterns do not belong in this index)
+#   symptoms:            natural-language phrases the customer may say
+#   root_cause:          one-paragraph explanation (Claude uses this to adapt tone)
+#   repo_checks:         list of concrete grep/read actions against customer repo
+#   mcp_checks:          optional list of XCOR RUM MCP calls to confirm
+#   canonical_answer:    ready-to-paste response in tech-support voice
+#   escalate_if:         conditions under which to escalate to humans
+#   escalation_template: pre-filled issue body when escalating
+
+entries:
+
+  - id: network-async-urlsession-not-captured
+    title: Network spans missing after migrating to Swift async/await URLSession APIs
+    category: network-capture
+    platforms: [ios]
+    symptoms:
+      - "network calls not captured"
+      - "network spans missing"
+      - "migrated to async/await"
+      - "switched to data(for:delegate:)"
+      - "Swift concurrency"
+    root_cause: |
+      The URLSession proxy swizzles the delegate-based and completion-handler APIs.
+      The pure Swift async variants (e.g. URLSession.shared.data(for:), data(for:delegate:))
+      are not Obj-C methods and cannot be swizzled. Customers migrating their networking
+      stack to async/await lose automated capture for those call sites.
+    repo_checks:
+      - type: grep
+        pattern: "URLSession\\.(shared\\.)?data\\(for:"
+        languages: [swift]
+      - type: grep
+        pattern: "data\\(for:\\s*\\w+,\\s*delegate:"
+        languages: [swift]
+    mcp_checks:
+      - tool: list_network_endpoints
+        purpose: Confirm endpoint count dropped after the release that migrated to async/await.
+    canonical_answer: |
+      Our URLSession capture works by swizzling Objective-C methods on URLSession.
+      The pure-Swift async APIs you're using (`data(for:)`, `data(for:delegate:)`)
+      are not exposed to the Obj-C runtime, so we cannot automatically intercept them.
+
+      Suggested course of action:
+      1. If your async networking goes through a centralized abstraction (a client
+         wrapper, a service layer), instrument there: start a span before the
+         `data(for:)` call, end it after, and attach the request URL, HTTP method,
+         and response status as span attributes. One change covers all call sites.
+      2. If async calls are scattered across the codebase, the pragmatic path is to
+         use the completion-handler URLSession APIs in the few hot paths you care
+         about — those are captured automatically.
+      3. The shape of the span / attributes to record is documented here:
+         https://embrace.io/docs/ios/6x/manual-instrumentation/network-instrumentation/
+    escalate_if:
+      - "automatic capture of async APIs is needed across a non-centralized codebase"
+
+  - id: network-third-party-init-before-embrace
+    title: Network calls from Apollo / Alamofire / custom URLSession not captured
+    category: network-capture
+    platforms: [ios]
+    symptoms:
+      - "graphql requests missing"
+      - "apollo not captured"
+      - "alamofire requests missing"
+      - "some requests captured but not others"
+    root_cause: |
+      Our proxy only intercepts URLSession instances created AFTER Embrace.setup runs.
+      Any SessionManager, Apollo client, or custom URLSession instantiated before the
+      SDK starts is invisible to us for the life of that object.
+    repo_checks:
+      - type: grep
+        pattern: "Embrace\\.setup|EmbraceIO\\.setup"
+        languages: [swift, objc]
+        purpose: Locate SDK startup call-site.
+      - type: grep
+        pattern: "\\.setup\\(options:"
+        languages: [swift]
+        purpose: |
+          Catches multiline fluent chains the pattern above misses, e.g.
+          `try Embrace\n    .setup(options: options)\n    .start()`.
+      - type: grep
+        pattern: "ApolloClient\\(|URLSession\\(configuration:|Session\\(configuration:|Alamofire\\.Session"
+        languages: [swift]
+        purpose: Locate third-party network-client instantiation.
+      - type: grep
+        pattern: "static\\s+(let|var)\\s+\\w+\\s*[:=].*(URLSession|ApolloClient|Session\\(|Alamofire)"
+        languages: [swift]
+        purpose: Static singletons that initialize on first access — often before setup.
+      - type: grep
+        pattern: "lazy\\s+var\\s+\\w+\\s*[:=].*(URLSession|ApolloClient|Session\\(|Alamofire)"
+        languages: [swift]
+        purpose: Lazy properties holding network clients — first-access timing matters.
+      - type: grep
+        pattern: "(Resolver|Container|DependencyContainer|Swinject|Factory)\\b.*register|\\.register\\(.*URLSession|\\.register\\(.*ApolloClient"
+        languages: [swift]
+        purpose: DI container registrations of URLSession / Apollo / Alamofire clients.
+      - type: grep
+        pattern: "@(Inject|LazyInject|Injected|LazyInjected)\\b|@Resolved\\b"
+        languages: [swift]
+        purpose: DI property wrappers — resolution timing depends on first read.
+      - type: analyze
+        description: |
+          For each match above, trace whether the construction actually executes BEFORE
+          or AFTER `Embrace.setup`. Static `let` and `lazy var` properties initialize on
+          first access — if the first access happens during app launch before setup,
+          the resulting URLSession is invisible to us. DI containers may register lazily
+          but resolve eagerly during composition-root assembly.
+    mcp_checks:
+      - tool: list_network_domains
+        purpose: Show which domains are and aren't being captured to confirm the pattern.
+    canonical_answer: |
+      Our SDK intercepts network calls by proxying URLSession. That proxy is only
+      installed when `Embrace.setup(...)` runs, and it only affects URLSession instances
+      created AFTER that point. Any SessionManager, Apollo client, or custom URLSession
+      created before XCOR RUM initializes is invisible to us for the life of that object.
+
+      Suggested course of action:
+      1. Make `Embrace.setup` the FIRST thing in `application(_:didFinishLaunchingWithOptions:)`,
+         before any other framework gets a chance to construct its networking stack.
+      2. Audit indirect construction sites — they're the usual culprit even when the
+         literal `setup` call is at the top of `didFinishLaunching`:
+            - `static let session = URLSession(...)` — initializes on first access.
+            - `lazy var apollo = ApolloClient(...)` — same.
+            - DI registrations (Swinject, Factory, Resolver, Needle) that resolve
+              during composition-root assembly.
+         For each, ask "when is this first read?" If the answer is "earlier in launch
+         than `Embrace.setup`," that client is invisible to us.
+      3. If you're using Apollo and only some queries are missing, check your cache
+         policy too: `returnCacheDataDontFetch` / `returnCacheDataElseFetch` queries
+         never hit URLSession at all, so there's nothing to capture.
+      4. Use `list_network_domains` (or look at the dashboard) to confirm which domains
+         appear and which don't — that pattern usually points straight at the client
+         that's initialized too early.
+    escalate_if:
+      - "Embrace.setup is confirmed to run first and requests are still missing"
+
+  - id: dsym-uuid-multiple-versions
+    title: Crashes unsymbolicated — dSYM not uploaded or doesn't match the binary UUID
+    category: symbolication
+    platforms: [ios, react-native, flutter]
+    symptoms:
+      - "crashes not symbolicated"
+      - "dsym uploaded but still unsymbolicated"
+      - "multiple app versions showing for one UUID"
+      - "four part version number"
+    root_cause: |
+      Backend matches dSYMs to crashes by UUID, not by app version. The UUID is generated
+      at build time and embedded in both the compiled Mach-O binary and its dSYM, so on
+      iOS you should never see two distinct dSYMs share a UUID. App version on the dSYM
+      list is informational only.
+
+      Two facts that often surprise customers and look like bugs but are not:
+      - A single app build produces many dSYMs (one per Mach-O — main executable plus
+        every embedded dynamic framework / dylib), each with its own UUID.
+      - A vendored third-party framework that doesn't change between releases keeps the
+        same UUID across releases, so the same dSYM legitimately appears under multiple
+        app versions in the list.
+
+      Legitimate reasons a crash stays unsymbolicated:
+      1. The dSYM for the crashing binary's UUID was never uploaded (build phase didn't
+         run, ran with wrong app ID/token, or `DEBUG_INFORMATION_FORMAT` is `dwarf`
+         instead of `dwarf-with-dsym`).
+      2. CFBundleShortVersionString is 4-part (e.g. `1.2.3.4`); we normalize to 3 parts,
+         which can make version-based reasoning confusing — but symbolication still
+         matches on UUID.
+      3. For RN/Flutter, JS/Dart symbolication is a separate path that doesn't use the
+         Mach-O UUID at all.
+    repo_checks:
+      - type: read
+        path: "**/Info.plist"
+        extract: CFBundleShortVersionString
+        flag_if: matches "^\\d+\\.\\d+\\.\\d+\\.\\d+$"
+      - type: grep
+        pattern: "DEBUG_INFORMATION_FORMAT\\s*=\\s*dwarf;"
+        scope: build-settings
+        purpose: |
+          Locate plain-dwarf settings. Pattern is intentionally lookahead-free
+          (BSD grep compatible); `dwarf-with-dsym` appears quoted in pbxproj and
+          won't match.
+      - type: analyze
+        description: |
+          Attribute each plain-`dwarf` match to its XCBuildConfiguration block.
+          `dwarf` in the Debug configuration is standard practice and NOT a
+          problem. Flag only when the Release configuration (or whichever config
+          the app archives with) is plain `dwarf` — that's the case where no
+          dSYMs are generated.
+      - type: grep
+        pattern: "run\\.sh|embrace_symbol_upload|embrace.*upload"
+        scope: build-phases
+        purpose: Confirm an upload step exists and capture its location.
+    mcp_checks:
+      - tool: get_app_details
+        purpose: |
+          Confirm app and version context (sessions, top version). Note: this
+          tool does NOT return the dSYM list — the dSYM/UUID inspection in the
+          suggested course of action happens in the dashboard
+          (Settings → Symbol Files), not via MCP.
+    canonical_answer: |
+      Backend matches dSYMs by UUID, not by app version — version in the dSYM list is
+      informational. The UUID is generated at build time and baked into both the binary
+      and the dSYM, so the same UUID across two dSYMs would be unusual on iOS.
+
+      Before going further, two patterns to rule out as "not actually a problem":
+      - One app build produces multiple dSYMs (one per Mach-O in the bundle), each with
+        its own UUID. That's normal.
+      - A vendored framework that doesn't change between releases keeps the same UUID
+        across releases, so seeing one dSYM listed under several app versions is normal.
+
+      Suggested course of action:
+      1. From the crash report, grab the UUID of the binary on the failing frame
+         (`uuid` in the crash JSON, or `image uuid` in the symbolicate log).
+      2. Check whether that UUID exists at all in the dSYM list for your app
+         (Settings → Symbol Files in the dashboard). If it's missing, that build's
+         dSYMs were never uploaded — fix the build phase and reupload.
+      3. If the UUID exists but the crash is still unsymbolicated, contact
+         XCOR RUM support with the UUID and your App ID.
+      4. While you're there, confirm `DEBUG_INFORMATION_FORMAT` is `dwarf-with-dsym`
+         for Release and that your upload script is actually invoked on Release builds.
+
+      Reference: https://embrace.io/docs/ios/6x/getting-started/dsym-upload/
+    escalate_if:
+      - "UUID is present in the dSYM list but crash is still unsymbolicated"
+
+  - id: rn-bundle-id-empty-on-upload
+    title: React Native bundle_id empty in upload logs → no JS symbolication
+    category: symbolication
+    platforms: [react-native]
+    symptoms:
+      - "RN crashes not symbolicated"
+      - "bundle_id empty in build logs"
+      - "Uploading React Native bundle succeeded but symbolication missing"
+    root_cause: |
+      The iOS upload tool checks for non-zero bundle_id length
+      before logging "Uploading React Native bundle". An empty or whitespace bundle_id
+      passes the upload call but produces no usable mapping on the backend. Seen when
+      the RN run.sh is invoked with malformed arguments (e.g. app ID + token split across
+      lines, variables interpreted as shell commands).
+    repo_checks:
+      - type: read
+        path: "ios/**/run.sh"
+        purpose: Confirm RN run.sh exists at the expected path for the installed SDK version.
+      - type: grep
+        pattern: "EMBRACE_APP_ID|EMBRACE_API_TOKEN"
+        scope: build-phases
+        purpose: Detect newline/whitespace contamination in env vars. Report only whether the value is malformed. Never quote the token value.
+      - type: analyze
+        description: Read the user's build logs and look for "bundle_id=" followed by empty. Never quote the API token from the logs.
+    canonical_answer: |
+      Your upload is technically succeeding but with an empty `bundle_id`, which means
+      the backend has nothing to match JS stack traces against. Two common causes:
+
+      1. The run.sh invocation is mangled. If you see lines in the log like
+         `[Embrace dSYM Upload] Using app ID <APPID>\n<OTHER_APPID> and API token $TOKEN`
+         or `line 111: <APPID>: command not found`, your app ID or token is being passed
+         across multiple lines or interpreted as a shell command. Check the build phase
+         script for stray newlines or unescaped variables.
+
+      2. Your build phase path points at an old SDK location. `run.sh` lives under `node_modules/@embrace-io/react-native/ios/scripts/run.sh`.
+    escalate_if:
+      - "bundle_id is populated in logs but symbolication still fails"
+
+  - id: rn-dual-initialization-required
+    title: "React Native: do I need to initialize XCOR RUM on both native and JS?"
+    category: rn
+    platforms: [react-native]
+    symptoms:
+      - "is dual init required"
+      - "singleton initialized twice"
+      - "initialize only in native"
+      - "initialize only in JS"
+    root_cause: |
+      Native init creates the SDK singleton and connects to the XCOR RUM backend; internal
+      checks prevent a second connection. JS init is still required because it installs
+      ErrorUtils.setGlobalHandler, unhandled-promise tracking (via Hermes or polyfill),
+      the JS-bundle hash for symbolication (iOS), and SDK/RN version metadata. Without
+      the JS-layer init, crashes from JS won't be recognized as RN crashes and stacks
+      won't symbolicate correctly.
+    repo_checks:
+      - type: grep
+        pattern: "initialize\\s*\\(|useEmbrace\\s*\\("
+        languages: [js, ts, tsx]
+        purpose: Confirm JS-side init present.
+      - type: grep
+        pattern: "\\[\\[Embrace sharedInstance\\]|Embrace\\.client\\?\\.setup|EmbraceManager"
+        languages: [swift, objc]
+        purpose: Confirm native-side (iOS) init present.
+    canonical_answer: |
+      Yes, both native and JS initialization are required, but they don't create two
+      connections. The native init is what actually connects to XCOR RUM. The JS init
+      only sets up JS-side handlers:
+
+      - ErrorUtils.setGlobalHandler to capture JS exceptions
+      - Unhandled promise rejection tracking (Hermes or polyfill)
+      - On iOS, a hash of the default JS bundle path for symbolication
+      - SDK and RN version metadata
+
+      If you skip the JS init, crashes from JS won't be tagged as RN crashes and stack
+      traces won't symbolicate properly.
+
+      Suggested course of action:
+      1. Keep native init in `application(_:didFinishLaunchingWithOptions:)` —
+         that's the connection to XCOR RUM.
+      2. Add JS init early in your JS entry point (typically `index.js` or `App.tsx`).
+         Use either `initialize()` or the `useEmbrace()` hook — they're equivalent;
+         pick whichever fits your code style.
+      3. Verify both are in place before shipping: a crash thrown from JS should show
+         up tagged as an RN crash with a symbolicated JS stack. If it shows up as a
+         native crash with no JS frames, JS init didn't run.
+    escalate_if:
+      - "both native and JS init are confirmed present (live code) and JS crashes still aren't tagged or symbolicated as RN crashes"
+
+  - id: swiftui-auto-instrumentation-misunderstanding
+    title: SwiftUI view-tracking is not automatic
+    category: swiftui
+    platforms: [ios]
+    symptoms:
+      - "SwiftUI views not tracked"
+      - "extremely long load times on a SwiftUI screen"
+      - "LazyVStack load never ends"
+      - "UIHostingController flood of events"
+      - "duplicate breadcrumbs on SwiftUI view"
+    root_cause: |
+      Our automatic view instrumentation targets UIKit. SwiftUI views must be manually
+      tagged with the `.embraceTrace` modifier or the XCOR RUM macro. Two specific
+      symptoms surface when auto-instrumentation is left enabled on SwiftUI screens:
+
+      1. `LazyVStack` scrolled while network activity fires — our ui-load span treats
+         ongoing network activity as "still loading," so the span never ends while the
+         user scrolls.
+      2. SwiftUI views hosted by `UIHostingController` inside a UITableViewCell /
+         UICollectionViewCell — every cell render triggers UIKit lifecycle events and
+         floods the dashboard.
+    repo_checks:
+      - type: grep
+        pattern: "LazyVStack|LazyHStack"
+        languages: [swift]
+      - type: grep
+        pattern: "UIHostingController"
+        languages: [swift]
+      - type: grep
+        pattern: "\\.embraceTrace|@EmbraceTrace"
+        languages: [swift]
+        purpose: Locate files where manual tagging may be in use.
+      - type: analyze
+        description: |
+          For the specific view the user is asking about, confirm the
+          `.embraceTrace` modifier (or `@EmbraceTrace` macro) is applied to live
+          code — attached to the view's body or type declaration — not merely
+          present in a comment or commented-out code. A file-level grep hit is
+          not sufficient evidence that the view is tagged.
+    canonical_answer: |
+      SwiftUI view tracking is not automatic, and that's a SwiftUI platform limitation,
+      not something XCOR RUM chose. SwiftUI views are value types whose lifecycle is
+      managed by the framework's diffing algorithm — there's no stable Obj-C lifecycle
+      hook for us to swizzle the way we do for `UIViewController`. So our automatic
+      view instrumentation targets UIKit; SwiftUI views need to opt in.
+
+      Suggested course of action:
+      1. For SwiftUI views you care about, apply the `.embraceTrace("ViewName")`
+         modifier or the `@EmbraceTrace` macro at the type level. The modifier is
+         lighter-touch; the macro is a one-line decoration on the struct.
+         Reference: https://embrace.io/docs/ios/6x/automatic-instrumentation/view-swiftui-tracking/
+
+      2. If you're seeing noise with auto-instrumentation already on, two known
+         pathological patterns:
+
+         - LazyVStack / LazyHStack that fires network calls while scrolling: our
+           ui-load span treats ongoing network activity as "still loading," so the
+           span never ends while the user scrolls. Disable auto-instrumentation for
+           that screen and wrap the first-batch load in a manual span instead.
+
+         - UIHostingController wrapping a SwiftUI view used as a UITableViewCell /
+           UICollectionViewCell: every cell render fires UIKit lifecycle events and
+           floods the session. If you need view instrumentation disabled for your
+           app while you refactor, contact XCOR RUM support with your App ID, SDK
+           version and an example session; support can check server-side settings
+           for your app.
+    escalate_if:
+      - "the view is confirmed tagged with .embraceTrace / @EmbraceTrace in live code and still produces no view spans"
+
+  - id: spm-mixed-static-dynamic-crash
+    title: Migration crash "NSArray element failed to match Swift Array Element"
+    category: linking
+    platforms: [ios]
+    symptoms:
+      - "Fatal error: NSArray element failed to match the Swift Array Element type"
+      - "crash during SDK migration"
+      - "CoreData entity resolution failure"
+      - "using SPM with multiple targets"
+    root_cause: |
+      When XCOR RUM is linked both statically and dynamically across different targets
+      in the same project, Swift's type system sees two distinct `SessionRecord`
+      (or other) types even though they are the same. CoreData entity resolution
+      fails, producing the NSArray-element type mismatch. This is a project
+      configuration problem, not an SDK bug.
+    repo_checks:
+      - type: read
+        path: "**/project.pbxproj"
+        purpose: Look for MACH_O_TYPE or product linkage that differs across targets that each depend on XCOR RUM.
+      - type: read
+        path: "**/Package.swift"
+        purpose: Check whether XCOR RUM is declared as a dependency of multiple products with different linkage.
+      - type: analyze
+        description: |
+          Enumerate every target that has EmbraceIO / EmbraceCore as a dependency; flag
+          if any target uses static linking while another in the same app uses dynamic.
+    canonical_answer: |
+      This crash is not caused by the SDK upgrade itself — it's caused by XCOR RUM being
+      linked in two different ways across your targets. When that happens, Swift's type
+      system treats the same type (e.g. `SessionRecord`) as two different types, one per
+      linkage, and CoreData entity resolution fails at runtime.
+
+      Suggested course of action:
+      1. Enumerate every target that depends on XCOR RUM. In Xcode: select the project,
+         then for each target check **General → Frameworks, Libraries, and Embedded
+         Content** for `EmbraceIO` / `EmbraceCore` / `EmbraceCrash`. Note whether each
+         entry is set to **Embed & Sign** (dynamic) or **Do Not Embed** (static).
+
+      2. If you use a Package.swift with multiple products, check each product's
+         `type:` — `.library(name: ..., type: .static, ...)` vs `.dynamic`. Anything
+         that pulls in XCOR RUM transitively must match.
+
+      3. For projects using CocoaPods + SPM, look for `use_frameworks!` in the Podfile
+         and confirm it matches what your SPM products do — mixed linkage between the
+         two managers is a common source of this exact crash.
+
+      4. Once you've enumerated everything, pick one linkage (static OR dynamic) and
+         apply it consistently to every target that depends on XCOR RUM. Static is
+         usually the easier choice for app targets; dynamic is required for
+         extensions or frameworks that need to share the SDK instance with the host.
+
+      5. Clean build folder (Shift+Cmd+K) and rebuild — stale derived data routinely
+         masks fixes.
+
+      If linkage is consistent across every target and the crash persists, contact
+      XCOR RUM support with the list of targets and their linkage.
+    escalate_if:
+      - "linking is confirmed consistent and crash persists"
+
+  - id: push-fcm-embrace-delegate-conflict
+    title: FCM + XCOR RUM push capture both swizzle UNUserNotificationCenterDelegate
+    category: push
+    platforms: [ios, flutter, react-native]
+    symptoms:
+      - "excessive logging on push notification"
+      - "crash when receiving push"
+      - "using FCM and Embrace push capture together"
+    root_cause: |
+      Both FCM and XCOR RUM's automatic push-notification capture attempt to set themselves
+      as (or swizzle) UNUserNotificationCenterDelegate. Depending on init order, this
+      produces either a delegate-chain loop (excessive logging as the notification passes
+      through both handlers) or a crash when a swizzled method calls the original and
+      hits unexpected state.
+    repo_checks:
+      - type: grep
+        pattern: "FirebaseMessaging|Messaging\\.messaging\\(\\)"
+        languages: [swift, objc]
+      - type: grep
+        pattern: "PushNotificationCaptureService|capturePushNotifications"
+        languages: [swift, objc]
+      - type: analyze
+        description: |
+          Flag co-presence of FCM and XCOR RUM automatic push capture — but only
+          when both are live code. Confirm an uncommented `import FirebaseMessaging`
+          and an active delegate assignment / `Messaging.messaging()` call, and an
+          active `PushNotificationCaptureService` in the capture-service setup.
+          Grep hits inside comments or commented-out code do not establish the
+          conflict.
+    canonical_answer: |
+      You have both FCM and XCOR RUM's automatic push-notification capture active. Both
+      swizzle UNUserNotificationCenterDelegate, which causes either a delegate-chain loop
+      (the verbose logging you're seeing) or a crash when the chain hits unexpected state.
+
+      Recommended fix: disable XCOR RUM's automatic push capture and use the manual API
+      instead. Call `Embrace.client?.logPushNotification(userInfo)` from inside your own
+      FCM notification handler. That lets FCM own the delegate and XCOR RUM receives the
+      notification metadata explicitly.
+
+      Docs:
+      - https://embrace.io/docs/ios/6x/automatic-instrumentation/push-notifications/
+      - https://embrace.io/docs/flutter/features/push-notifications/
+    escalate_if:
+      - "XCOR RUM automatic push capture is disabled and the manual logPushNotification path is in place, but the crash or log flood persists"
+      - "push symptoms present but FCM co-presence is not confirmed in live code — likely a different root cause"
+
+  - id: dsym-upload-network-blocked
+    title: dSYM upload fails from corporate CI / firewall blocks dsym-store
+    category: symbolication
+    platforms: [ios, react-native, flutter, unity]
+    symptoms:
+      - "dSYM upload timeout"
+      - "connection refused to dsym-store.emb-api.com"
+      - "symbol upload fails only from CI / only during business hours"
+    root_cause: |
+      The symbol-upload binary POSTs to https://dsym-store.emb-api.com. There is exactly
+      one (US-hosted) dsym-store, regardless of whether the app's XCOR RUM apps are
+      in the US or EU region. Corporate egress policies, VPNs, or DLP appliances
+      frequently block or rate-limit this host.
+    repo_checks:
+      - type: grep
+        pattern: "dsym-store\\.emb-api\\.com"
+        scope: all
+        purpose: Confirm the build sees the correct host in logs.
+    canonical_answer: |
+      Symbol uploads go to a single US-hosted endpoint: https://dsym-store.emb-api.com.
+      This is true even if your XCOR RUM apps are in the EU region — there's only one
+      dSYM store.
+
+      Please have your build-machine owner verify the host is reachable. A quick probe:
+
+          curl -sS https://dsym-store.emb-api.com/status
+
+      If that hangs or returns a non-200 from your CI box but works from a dev laptop,
+      you have a network-policy block and your team needs to allowlist that host.
+    escalate_if:
+      - "host is reachable from CI and uploads still fail"
+
+  - id: dsym-script-path-moved-between-versions
+    title: 'Build fails after SDK bump — "run.sh: No such file or directory"'
+    category: symbolication
+    platforms: [react-native, flutter, unity]
+    symptoms:
+      - "run.sh no such file"
+      - "build fails after upgrading the Embrace package"
+      - "upgraded 4.2.0 to 4.3.0"
+    root_cause: |
+      The RN / Flutter / Unity wrappers have moved or renamed the dSYM upload shell
+      script between versions. The app's Xcode build phase still points at the old
+      path. Example: Flutter 4.2.0 → 4.3.0 relocated the script; RN scripts live under
+      node_modules/@embrace-io/react-native/ios/scripts/.
+    repo_checks:
+      - type: read
+        path: "**/project.pbxproj"
+        purpose: Find the build-phase shell script referencing XCOR RUM run.sh and extract the path.
+      - type: grep
+        pattern: "run\\.sh"
+        scope: build-phases
+      - type: analyze
+        description: |
+          Look up the installed SDK version (package.json / Podfile.lock / pubspec.yaml)
+          and compare the script path in the build phase against the current location
+          for that version.
+    canonical_answer: |
+      Your build phase is pointing at the old location of our upload script. Between SDK
+      versions we occasionally relocate it — on your current version the script now lives
+      at `<correct path for the installed version>`. Update the build phase's script
+      path and your build should succeed.
+    escalate_if:
+      - "script path is correct for installed version but build still fails"
+
+  - id: apollo-cache-policy-suppresses-requests
+    title: Apollo GraphQL requests missing — cache policy short-circuits network
+    category: network-capture
+    platforms: [ios]
+    symptoms:
+      - "graphql requests intermittently captured"
+      - "some apollo queries missing from dashboard"
+    root_cause: |
+      When Apollo is configured with a cache policy that can return from cache
+      (e.g. `returnCacheDataDontFetch`, `returnCacheDataElseFetch`), cached queries
+      never reach URLSession. We capture by intercepting URLSession, so we cannot
+      capture what isn't fired — not an SDK issue.
+    repo_checks:
+      - type: grep
+        pattern: "cachePolicy|returnCacheData"
+        languages: [swift]
+    canonical_answer: |
+      Apollo's cache policies short-circuit some queries so they never reach
+      URLSession. Our proxy can only capture requests that actually hit the network,
+      so those queries won't appear in XCOR RUM even when the SDK is working perfectly.
+
+      Suggested course of action:
+      1. Check your Apollo client config for cache-returning policies:
+         `returnCacheDataDontFetch`, `returnCacheDataElseFetch`.
+      2. If those queries need to be visible in XCOR RUM, instrument the Apollo
+         interceptor chain manually with a custom `ApolloInterceptor` and emit a
+         span for cache hits.
+      3. Cache-miss queries that fall through to the network are captured normally
+         — confirm by triggering a fresh query that bypasses cache.
+    escalate_if:
+      - "no cache-returning policy found in the client config and network-fired queries still don't appear"
+
+  - id: network-legacy-urlsession-proxy-flag
+    title: Downloads break after SDK upgrade — new vs legacy URLSession proxy
+    category: network-capture
+    platforms: [ios]
+    symptoms:
+      - "downloads failing after SDK upgrade"
+      - "m3u8 / mp3 / streaming broken"
+      - "works when we remove URLSessionCaptureService"
+      - "use_legacy_urlsession_proxy"
+    root_cause: |
+      The SDK has two URLSession proxy implementations, and which one an app uses is
+      a server-side setting. Certain streaming/download patterns (AVPlayer-adjacent,
+      HLS manifests, partial-content range requests) can behave differently under
+      the new proxy.
+    canonical_answer: |
+      The newer URLSession proxy can interact poorly with specific streaming and
+      download patterns. Contact XCOR RUM support with your App ID, SDK version, the
+      domain/URL pattern that's failing and an example session ID; support can check
+      server-side settings for your app.
+    escalate_if:
+      - "always — this needs a server-side setting change, so contact XCOR RUM support"
+    escalation_template: |
+      App ID:
+      SDK version:
+      Failing domain / URL pattern:
+      Example session ID:
+      Repro steps:
+
+  - id: webview-enable-plist-ignored-in-6x
+    title: "WEBVIEW_ENABLE=false in plist doesn't disable anything in 6.x"
+    category: network-capture
+    platforms: [ios]
+    symptoms:
+      - "Embrace-Info.plist has WEBVIEW_ENABLE=false but webview capture still active"
+      - "network capture stopped working after migration to 6.x"
+      - "sessions present but no network requests after release"
+    root_cause: |
+      6.x configuration is driven by `Embrace.Options` passed to setup, not by the
+      legacy Embrace-Info.plist keys. A lingering plist may be misleading you; the
+      SDK largely ignores it. To enable/disable WebView capture in 6.x, add or omit
+      `WebViewCaptureService` in your `CaptureServiceBuilder`.
+    repo_checks:
+      - type: read
+        path: "**/Embrace-Info.plist"
+        purpose: Detect lingering 5.x plist. Report only which keys are present; never quote its values, which can include the API token.
+      - type: grep
+        pattern: "WebViewCaptureService|URLSessionCaptureService"
+        languages: [swift]
+        purpose: Confirm whether explicit capture-service configuration is in place.
+      - type: grep
+        pattern: "CaptureServiceBuilder|Embrace\\.Options"
+        languages: [swift]
+    canonical_answer: |
+      In 6.x, SDK configuration is driven by `Embrace.Options` and `CaptureServiceBuilder`,
+      not by the legacy Embrace-Info.plist. The plist you still have is largely ignored
+      — and can be misleading you about what's actually active.
+
+      To control WebView capture in 6.x, configure `WebViewCaptureService` explicitly in
+      your `CaptureServiceBuilder`. If you want it off, simply omit it. Same for URLSession —
+      `URLSessionCaptureService` must be included (via `addDefaults()` or explicitly) for
+      native network capture to occur.
+
+      Our recommendation: delete the 5.x plist to avoid future confusion.
+    escalate_if:
+      - "capture services are configured explicitly via CaptureServiceBuilder and runtime capture behavior still doesn't match that configuration"
+
+  - id: spm-swiftsyntax-version-clamp
+    title: SwiftSyntax major-version conflict blocks XCOR RUM from compiling
+    category: linking
+    platforms: [ios]
+    symptoms:
+      - "package graph failed to resolve"
+      - "SwiftSyntax 509 vs 602"
+      - "our app requires SwiftSyntax 6xx and Embrace requires 5xx"
+    root_cause: |
+      XCOR RUM's Package.swift declares a SwiftSyntax version range. On older XCOR RUM
+      releases this range was narrow and conflicted with host apps that needed newer
+      SwiftSyntax majors. Current XCOR RUM SDK uses `"509.0.0"..<"604.0.0"`, which
+      covers SwiftSyntax 5xx through 603. A conflict today usually means the app
+      either is on an older XCOR RUM SDK or needs SwiftSyntax 604+, which XCOR RUM does
+      not support.
+    repo_checks:
+      - type: read
+        path: "**/Package.swift,**/Package.resolved"
+        purpose: Find the SwiftSyntax dependency spec on the app's side and the installed XCOR RUM version.
+    canonical_answer: |
+      Recent XCOR RUM SDK versions widened the SwiftSyntax range to
+      `"509.0.0"..<"604.0.0"`, so SwiftSyntax 5xx through 603 should resolve cleanly.
+      Two things to check:
+
+      1. Confirm you're on a recent XCOR RUM SDK release. Older 6.x versions had a
+         narrower range and would conflict with SwiftSyntax 6xx.
+      2. If your toolchain requires SwiftSyntax 604+, that range isn't supported.
+         Pin your dependency to a version inside the supported window, or contact
+         XCOR RUM support with your constraint.
+
+      If neither applies, contact XCOR RUM support with your Package.resolved and
+      the failing resolver output.
+    escalate_if:
+      - "the app needs SwiftSyntax 604+ and cannot pin lower"
+
+  - id: spm-datadog-otel-collision
+    title: XCOR RUM + Datadog iOS collide on OpenTelemetry dependency (older DD versions only)
+    category: linking
+    platforms: [ios]
+    symptoms:
+      - "cannot install Embrace and Datadog in same app"
+      - "OpenTelemetry duplicate"
+      - "dd-sdk-ios otel conflict"
+    root_cause: |
+      Older versions of `dd-sdk-ios` vendored their own fork of opentelemetry-swift with
+      modified module names, causing duplicate symbol / module conflicts when XCOR RUM's
+      OpenTelemetry was also resolved by SPM. Current upstream `DataDog/dd-sdk-ios`
+      depends on the official `opentelemetry-swift-core` package (same one XCOR RUM uses),
+      so the collision is gone on modern DD SDK versions.
+    repo_checks:
+      - type: read
+        path: "**/Package.swift,**/Package.resolved"
+        purpose: Detect `DatadogCore` / `DatadogLogs` / `DatadogRUM` alongside XCOR RUM, and capture the resolved DD SDK version.
+    canonical_answer: |
+      On current `dd-sdk-ios` versions this conflict no longer exists — Datadog now
+      depends on the official `opentelemetry-swift-core` package, the same one XCOR RUM
+      uses. The collision is only present on older DD SDK versions that still vendor a
+      modified OTel module.
+
+      Suggested course of action:
+      1. Check your `Package.resolved` for the DD SDK version. If you can move to a
+         current `dd-sdk-ios`, that resolves the conflict directly.
+      2. If you can't upgrade, contact XCOR RUM support with your `Package.resolved`
+         and the failing resolver output.
+    escalate_if:
+      - "the app is on a current dd-sdk-ios (official OTel dependency) and still sees duplicate-symbol or module conflicts"
+
+  - id: xcode-26-build-failure
+    title: Xcode 26 build / runtime issues on older 6.x SDK versions
+    category: linking
+    platforms: [ios]
+    symptoms:
+      - "Xcode 26 + Embrace 6.16 compilation errors"
+      - "OpenTelemetry package error under Xcode 26"
+      - "freeze after splash with CoreData errors"
+    root_cause: |
+      Older 6.x SDK releases (notably 6.16.x) hit OpenTelemetry resolution errors and
+      occasional CoreData runtime errors under Xcode 26 in some app dependency graphs. The
+      Apple SDK now CI-tests against Xcode 26 as the baseline (PR #591, shipped in
+      6.19.0), and several Xcode 26-specific fixes have landed: MetricKit symbol fix
+      in 6.17.0, CocoaPods cross-target import gating + EmbraceOTelBridge subspec
+      post-6.20.0. Most reports against 6.16.x are resolved by upgrading.
+    repo_checks:
+      - type: read
+        path: "**/Podfile,**/Podfile.lock,**/Package.swift,**/Package.resolved"
+        purpose: Confirm installed XCOR RUM SDK version and collect dep graph.
+    canonical_answer: |
+      The Apple SDK has had several Xcode 26 fixes since 6.16.x — MetricKit symbol
+      handling (6.17.0), CI baseline moved to Xcode 26 (6.19.0), and CocoaPods +
+      cross-target import gating in newer builds. Most reports against 6.16.x are
+      resolved by moving to 6.19.0 or later.
+
+      Suggested course of action:
+      1. Upgrade to the latest 6.x release and rebuild. If the OTel resolution error
+         and CoreData runtime errors clear, you're done.
+      2. If errors persist on the latest release, contact XCOR RUM support with your
+         `Podfile.lock` / `Package.resolved` and the failing build / runtime output.
+         An interaction with one of your own dependencies is still possible.
+      3. If you're blocked from upgrading immediately, contact XCOR RUM support with
+         the same dependency graph.
+    escalate_if:
+      - "the app is on the latest 6.x and still sees Xcode 26 build / runtime errors"
+    escalation_template: |
+      App ID:
+      SDK version (must be latest 6.x):
+      Xcode version:
+      Dep manager (SPM / Cocoapods / mixed):
+      Dep graph attached? (Podfile.lock / Package.resolved):
+      Reproducible in empty app? (Y/N):
+
+  - id: options-customize-only-captures
+    title: Customizing only captureServices forces supplying the whole crash stack
+    category: options-ergonomics
+    platforms: [ios]
+    symptoms:
+      - "want to customize URLSessionCaptureService options only"
+      - "compiler requires crashReporter parameter"
+      - "EmbraceCrashReporter doesn't conform to CrashReporter"
+    root_cause: |
+      Embrace.Options has convenience initializers that default crashReporter,
+      backtracer, and symbolicator when captureServices is not supplied. Adding a custom
+      captureServices removes that default path and forces the app to specify all
+      three explicitly — but EmbraceCrashReporter isn't visible as a CrashReporter
+      conformer without additional imports, and the hang detector isn't externally
+      constructible. End result: hard to customize one capture service without
+      re-declaring the entire crash stack.
+    repo_checks:
+      - type: grep
+        pattern: "CaptureServiceBuilder|Embrace\\.Options\\(|captureServices:"
+        languages: [swift]
+      - type: grep
+        pattern: "crashReporter:|URLSessionCaptureService"
+        languages: [swift]
+    canonical_answer: |
+      This is a known ergonomics rough edge in Embrace.Options. When you add a custom
+      `captureServices:` argument, the convenience initializer that defaults the crash
+      stack drops away and you're forced to specify `crashReporter`, `backtracer`, and
+      `symbolicator` explicitly — and some of those types aren't conveniently visible.
+
+      Two interim patterns that work:
+
+      1. Use `CaptureServiceBuilder().addDefaults().remove(ofType: URLSessionCaptureService.self).add(...)` —
+         this gives you the default capture service set with your customized URLSession
+         capture swapped in, and keeps the default crash stack intact.
+
+      2. Pass `crashReporter: nil` explicitly if you want to disable crash capture
+         entirely. At runtime this works, but note KSCrash is still linked when you
+         depend on the `EmbraceIO` product; to fully exclude KSCrash you'd depend on
+         `EmbraceCore` directly.
+
+    escalate_if:
+      - "a fully public type-safe API is needed to customize"
+
+  - id: hang-detection-hybrid-frameworks
+    title: Hangs reported for RN / Flutter / Unity iOS apps are usually false positives
+    category: session
+    platforms: [react-native, flutter, unity]
+    symptoms:
+      - "seeing hangs on iOS RN/Flutter/Unity that we don't believe are real"
+      - "hang_per_session showing non-zero but we don't see user-visible issues"
+    root_cause: |
+      Our hang-detection heuristic for iOS relies on main-thread signals that are
+      interpreted differently on hybrid frameworks (JS bridge work, Unity main-loop
+      scheduling, Flutter engine ticks). For RN/Flutter/Unity iOS apps, the global
+      mitigation is a server-side override: hang_per_session reports 0 and the
+      dashboard-side rendering is suppressed.
+    canonical_answer: |
+      The hangs you're seeing are almost certainly false positives. Our iOS hang
+      heuristic doesn't distinguish JS-bridge / game-engine / Flutter-engine work
+      from genuine main-thread blocks, so hybrid frameworks produce spurious hangs.
+
+      hang_per_session and the related dashboard rendering are suppressed server-side
+      for React Native, Flutter, and Unity iOS apps. If you're still seeing them,
+      contact XCOR RUM support with your App ID, SDK version and an example session;
+      support can check server-side settings for your app.
+
+  - id: rn-otelemetry-bundle-path-OTA
+    title: setJavaScriptBundlePath for OTA / Expo updates — which path format?
+    category: rn
+    platforms: [react-native]
+    symptoms:
+      - "OTA update crashes not symbolicated"
+      - "setJavaScriptBundlePath silently failing"
+      - "expo-updates symbolication"
+    root_cause: |
+      `setJavaScriptBundlePath` is used when the app loads a non-default JS bundle
+      (Expo updates, CodePush). The current API swallows file-read errors so the
+      the app can't tell whether the path format is wrong or the file is missing.
+      Both `file:///var/.../bundle` and `/var/.../bundle` forms are in the wild;
+      URL-encoded spaces (%20) add further confusion.
+    repo_checks:
+      - type: grep
+        pattern: "setJavaScriptBundlePath"
+        languages: [js, ts, tsx, swift]
+      - type: grep
+        pattern: "expo-updates|CodePush"
+        languages: [js, ts, tsx]
+    canonical_answer: |
+      `setJavaScriptBundlePath` is how we point the SDK at a non-default JS bundle for
+      symbolication (Expo updates, CodePush). Two things to check first:
+
+      1. Path format. Pass the filesystem path, not a URL. Strip any leading `file://`
+         scheme. Decode any `%20`-style URL encoding before passing.
+
+      2. File existence. Our current API swallows the underlying file-read error, so a
+         wrong path looks identical to a working call. Log the path yourself and confirm
+         it exists and is readable at the moment you call.
+
+    escalate_if:
+      - "path format is correct, file exists at call time, and symbolication still fails"
+
+  - id: otel-resource-silently-dropped
+    title: Custom OTel resource passed via EmbraceIO.OTelOptions on older SDK versions is dropped
+    category: options-ergonomics
+    platforms: [ios]
+    symptoms:
+      - "custom resource attributes not appearing on forwarded spans"
+      - "service.name not overridable"
+      - "passed EmbraceIO.OTelOptions(resource:) and nothing changed"
+    root_cause: |
+      On older 6.x versions, `EmbraceIO.setup(options:)` called through to
+      `Embrace.setup(options:)` without threading the resource. The fix is in current
+      SDK: `Sources/EmbraceIO/EmbraceIO.swift` now calls
+      `Embrace.setup(options:, otelResources: options.otel?.resource)` so the resource
+      passed via `EmbraceIO.OTelOptions(resource:)` is honored.
+    repo_checks:
+      - type: grep
+        pattern: "EmbraceIO\\.OTelOptions|OTelOptions\\(resource:"
+        languages: [swift]
+      - type: read
+        path: "**/Package.resolved,**/Podfile.lock"
+        purpose: Read installed XCOR RUM SDK version to determine if the app is on a fixed release.
+    canonical_answer: |
+      SDK versions before 6.17.0 didn't thread `EmbraceIO.OTelOptions.resource` through
+      to the underlying setup, so a custom resource was silently dropped. Fixed in
+      6.17.0 (commit `69e9b231`, PR #531) — `EmbraceIO.setup` now passes the resource
+      through.
+
+      First step: confirm your installed SDK version. If you're on 6.16.x or earlier,
+      upgrading to 6.17.0+ is the cleanest fix. If upgrading
+      isn't immediately possible, the deprecated
+      `Embrace.client?.metadata.addResource(key:value:lifespan:)` API can be called
+      after setup as a temporary workaround.
+
+      If you're on 6.17.0 or later and the resource is still dropped, contact
+      XCOR RUM support with your SDK version.
+    escalate_if:
+      - "the app is on a current SDK version, OTelOptions.resource is set, and resource attributes still don't appear on forwarded spans"
+    escalation_template: |
+      Symptom: Custom OTelOptions.resource not reflected on forwarded spans
+      Customer app ID:
+      Installed SDK version:
+      Resource attributes set:
+      Verified setup call site passes OTelOptions(resource:):
+
+  - id: session-phantom-foreground-from-push
+    title: Push notification wakes app → "foreground" session that never ends cleanly
+    category: session
+    platforms: [ios]
+    symptoms:
+      - "sessions tagged foreground that shouldn't be"
+      - "ghost push notifications causing phantom sessions"
+      - "startup span never ends"
+      - "first-frame span open for hours"
+    root_cause: |
+      iOS gives us ambiguous signals for session state at the moment a session begins —
+      push wake, prewarming, background fetch, and genuine foreground launches can all
+      look similar. If we tag a session foreground when no rendering actually happens,
+      our startup / first-frame spans never reach their normal end condition and stay
+      open until the user finally foregrounds the app for real. We now drop
+      startup spans that don't make sense, but the underlying classification is still
+      imperfect.
+    canonical_answer: |
+      This is a known limitation of iOS session classification. Push notifications, OS
+      prewarming, and background fetch can all wake the app in ways that look foreground
+      to our detection, but no actual rendering happens — so our first-frame / startup
+      spans never meet their normal end condition and stay open until the next real
+      foreground.
+
+      Recent SDK versions drop startup spans that don't make sense as a mitigation. If
+      you're on an older SDK, upgrading will reduce the noise. There is no complete
+      fix; it's a structural limitation of the signals iOS gives the SDK at session
+      start. If it persists on a recent SDK version, contact XCOR RUM support with your
+      App ID, SDK version and an example session.
+
+  - id: app-size-estimate
+    title: How much does the XCOR RUM SDK add to my iOS app binary?
+    category: size
+    platforms: [ios]
+    symptoms:
+      - "how much does Embrace add to app size"
+      - "our binary grew by X MB after adding Embrace"
+      - "customer claims Embrace is larger than documented"
+    root_cause: |
+      The SDK's binary footprint is ~1-2 MB compressed / ~2-3 MB installed. Measurements
+      routinely come in 2-3x higher when they're taken from debug builds,
+      including multiple architectures that the App Store thinning would strip, or
+      comparing against a build that also changed other dependencies.
+    repo_checks:
+      - type: read
+        path: "**/*.xcconfig,**/project.pbxproj"
+        purpose: Determine linkage (static vs dynamic), strip settings, architectures built. Quote only those settings, never credentials.
+    canonical_answer: |
+      Our documented footprint is ~1-2 MB compressed / ~2-3 MB installed. dSYMs do not
+      affect this — they're stand-alone debug files produced at build time and are
+      never present on the device. If you're measuring significantly more, a few
+      things commonly inflate the number:
+
+      - Debug vs release build — our contribution in debug is much larger.
+      - Multiple architectures not stripped from the archive (App Store thinning
+        normally handles this in the final per-device download).
+      - Other dependencies that changed between the "before" and "after" build.
+
+      To measure precisely, you can rebuild with `LD_GENERATE_MAP_FILE=YES` and attribute
+      bytes per object file back to their library.
+    escalate_if:
+      - "a release, thinned, single-change build measured via linker map still shows XCOR RUM's contribution well above the documented footprint"
+
+  - id: graphql-path-customization
+    title: Group GraphQL operations by operation name (not single /graphql endpoint)
+    category: network-capture
+    platforms: [ios]
+    symptoms:
+      - "all GraphQL requests grouped under /graphql"
+      - "cannot distinguish graphql operations in dashboard"
+      - "how to set x-emb-path in 6.x"
+    root_cause: |
+      In 5.x, customers set the `x-emb-path` header on the request and the server used
+      it to classify the endpoint. In 6.x, this is replaced by the URLSession data
+      source pattern: implement `URLSessionRequestsDataSource.modifiedRequest(for:)` to
+      return a URLRequest whose path reflects the operation. Customers who read the
+      mixed docs often set the wrong header or expect 5.x behavior.
+    repo_checks:
+      - type: grep
+        pattern: "URLSessionRequestsDataSource|modifiedRequest\\(for:"
+        languages: [swift]
+      - type: grep
+        pattern: "X-APOLLO-OPERATION-NAME|x-emb-path"
+        languages: [swift]
+    canonical_answer: |
+      In 6.x, the way to classify GraphQL operations is via `URLSessionRequestsDataSource`,
+      not the old `x-emb-path` header. Example:
+
+          class ApolloDataSource: NSObject, URLSessionRequestsDataSource {
+              func modifiedRequest(for request: URLRequest) -> URLRequest {
+                  if let header = request.value(forHTTPHeaderField: "X-APOLLO-OPERATION-NAME") {
+                      var modified = request
+                      modified.url = request.url?.appendingPathComponent(header)
+                      return modified
+                  }
+                  return request
+              }
+          }
+
+      And when initializing XCOR RUM:
+
+          let options = Embrace.Options(
+              captureServices:
+                  CaptureServiceBuilder()
+                      .addDefaults()
+                      .add(.urlSession(options: .init(requestsDataSource: ApolloDataSource())))
+                      .build(),
+              // ...
+          )
+
+      Key: the header you read must match the header Apollo actually sets on the request.
+      `X-APOLLO-OPERATION-NAME` is present by default on Apollo iOS; if you're using a
+      different GraphQL client, adapt accordingly.
+    escalate_if:
+      - "URLSessionRequestsDataSource is implemented and registered, the header is confirmed on outgoing requests, and operations still group under a single /graphql endpoint"
+
+  - id: crashlytics-reports-suppressed-by-ignored-urls
+    title: Crashes stop appearing when using CrashlyticsReporter and the Crashlytics upload URL is on the ignore list
+    category: crashes
+    platforms: [ios, react-native]
+    symptoms:
+      - "crashes suddenly stopped showing up"
+      - "no crashes in Embrace but Crashlytics has them"
+      - "crash count dropped to zero after a release"
+      - "we use Crashlytics as our crash reporter"
+      - "we added ignored URLs / disabledUrlPatterns"
+      - "we blocked googleapis.com from network capture"
+    root_cause: |
+      `CrashlyticsReporter` has no direct hook into Firebase. It captures the crash
+      from the HTTP body of the Crashlytics upload request. It listens for the SDK's
+      internal "network request captured" notification and only acts when the captured
+      URL contains both `crashlyticsreports-pa.googleapis.com` and `batchlog`. That
+      notification is posted only for requests the URLSession capture service actually
+      captured.
+
+      `ignoredURLs` is a plain substring match against the full URL. Any pattern that is
+      a substring of the Crashlytics upload URL — `googleapis.com`, `google`, `.com` —
+      silently removes the request from capture, and with it the only path XCOR RUM has
+      to the crash. Crashes disappear from XCOR RUM while Crashlytics keeps receiving them.
+
+      The same happens if the URLSession capture service is not enabled at all: no
+      capture, no notification, no crashes. With `CrashlyticsReporter`, network capture
+      is a hard dependency of crash reporting, not an independent feature.
+
+      There is no exemption for the Crashlytics domain — the ignore list is applied
+      before any reporter sees the request.
+    repo_checks:
+      - type: grep
+        pattern: "CrashlyticsReporter\\(\\)|EmbraceCrashlyticsSupport"
+        languages: [swift]
+        purpose: Confirm Crashlytics — not the default KSCrashReporter — is the installed crash reporter.
+      - type: grep
+        pattern: "ignoredURLs"
+        languages: [swift]
+        purpose: Find the ignore list. Read every string in it.
+      - type: analyze
+        purpose: |
+          For each string in `ignoredURLs`, test whether it is a substring of
+          `https://crashlyticsreports-pa.googleapis.com/batchlog`. A single match
+          explains the outage. Watch for broad patterns (`googleapis.com`, `google`,
+          `apis.com`) added to suppress third-party traffic.
+      - type: grep
+        pattern: "disabledUrlPatterns|disabled_url_patterns"
+        languages: [ts, tsx, js, json]
+        purpose: |
+          React Native only — the JS `disabledUrlPatterns` in SDK_CONFIG is passed
+          straight through to iOS `ignoredURLs`. Apply the same substring test to
+          each pattern.
+      - type: grep
+        pattern: "CaptureServiceBuilder|captureServices|\\.urlSession\\("
+        languages: [swift]
+        purpose: |
+          If capture services are customized, confirm URLSessionCaptureService is still
+          in the list. Removing it disables Crashlytics crash capture entirely.
+      - type: analyze
+        purpose: |
+          Pin down when it broke — the release/commit that introduced the ignore pattern
+          should line up with the app version where crashes stopped.
+    mcp_checks:
+      - tool: get_crash_distribution
+        purpose: Identify the app version where the crash count drops to zero.
+      - tool: get_top_versions
+        purpose: Confirm the affected versions are still shipping sessions — sessions present, crashes absent is the signature.
+      - tool: list_network_domains
+        purpose: Confirm `crashlyticsreports-pa.googleapis.com` is absent from captured domains on the broken versions (and present on earlier ones, if the ignore list was added later).
+    canonical_answer: |
+      Found it. When you use `CrashlyticsReporter`, XCOR RUM doesn't read crashes from
+      Firebase directly — it captures them out of the Crashlytics upload request. The
+      reporter watches for a captured request to `crashlyticsreports-pa.googleapis.com/batchlog`
+      and pulls the crash out of the request body.
+
+      Your ignore list contains a pattern that matches that URL, so the request never
+      gets captured and the reporter never sees the crash. `ignoredURLs` is a substring
+      match against the whole URL, so `googleapis.com` takes out
+      `crashlyticsreports-pa.googleapis.com/batchlog` along with the third-party traffic
+      you were trying to exclude. Crashlytics keeps receiving the crashes; XCOR RUM never
+      hears about them.
+
+      Suggested course of action:
+      1. Narrow the pattern so it doesn't match the Crashlytics upload. Target the
+         specific host or path you actually want to exclude (for example
+         `firebaseinstallations.googleapis.com` or `firebaseremoteconfig.googleapis.com`)
+         instead of `googleapis.com`.
+      2. Ship it and confirm: `crashlyticsreports-pa.googleapis.com` should reappear in
+         your captured network domains, and crashes should follow in the same version.
+      3. Same rule for anything else you add later — if a pattern is a substring of
+         `https://crashlyticsreports-pa.googleapis.com/batchlog`, it will disable your
+         crash reporting. Note the request stays captured as a network span; if the noise
+         is the problem, a `URLSessionRequestsDataSource` can drop or rewrite the span
+         without blocking capture.
+      4. Worth reconsidering `CrashlyticsReporter` itself. XCOR RUM's built-in reporter
+         doesn't depend on network capture and gives you session properties, XCOR RUM
+         resources, and last-run state, which the Crashlytics path can't:
+         https://embrace.io/docs/ios/6x/manual-instrumentation/crash-reporting/
+
+      On React Native the ignore list usually comes from `disabledUrlPatterns` in your
+      JS SDK_CONFIG rather than Swift — it maps to the same iOS setting, so check there too.
+    escalate_if:
+      - "no ignore pattern matches the Crashlytics upload URL and URLSessionCaptureService is confirmed enabled, but crashes are still missing"
+      - "the broad pattern has to stay and XCOR RUM should always capture the Crashlytics domain (no override exists)"
+    escalation_template: |
+      App ID:
+      SDK version:
+      Crash reporter in use (CrashlyticsReporter / KSCrashReporter):
+      Full `ignoredURLs` / `disabledUrlPatterns` list:
+      App version where crashes stopped:
+      Sessions still arriving on that version? (Y/N):
+      `crashlyticsreports-pa.googleapis.com` present in captured network domains? (Y/N):
+      Crashlytics dashboard shows the crashes? (Y/N):
+      Request: exempt the Crashlytics upload URL from the ignore list when
+      CrashlyticsReporter is the installed reporter (Y/N):

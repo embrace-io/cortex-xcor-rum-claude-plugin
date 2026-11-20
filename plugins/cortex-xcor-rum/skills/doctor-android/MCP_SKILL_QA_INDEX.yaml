@@ -1,0 +1,871 @@
+# XCOR RUM MCP Skill — Canonical Q&A Index (Android)
+#
+# Each entry is a recurring customer question. The skill matches
+# customer intent against `symptoms`, runs `repo_checks` against their code
+# (Claude Code Read/Grep/Glob), optionally confirms with `mcp_checks` (XCOR RUM
+# MCP server tools), then returns `canonical_answer`. If any `escalate_if`
+# condition holds, route to XCOR RUM support with a filled-in `escalation_template`.
+#
+# Scope: Android and the Android side of React Native. iOS-only patterns live in
+# the doctor-ios skill. The FCM entry covers Android, iOS and React Native, and
+# only this index has it.
+#
+# Schema
+#   id:                  unique slug
+#   title:               one-line human title
+#   category:            crashes | symbolication | linking | rn | push |
+#                        logging | session | api
+#   platforms:           android | react-native | ios (cross-platform only)
+#   symptoms:            natural-language phrases the customer may say
+#   root_cause:          one-paragraph explanation (Claude uses this to adapt tone)
+#   repo_checks:         list of concrete grep/read actions against customer repo
+#   mcp_checks:          optional list of XCOR RUM MCP calls to confirm
+#   canonical_answer:    ready-to-paste response in tech-support voice
+#   escalate_if:         conditions under which to escalate to humans
+#   escalation_template: pre-filled issue body when escalating
+
+entries:
+
+  - id: android-crash-count-differs-from-other-reporter
+    title: XCOR RUM Android crash counts differ from Crashlytics / Firebase / Sentry
+    category: crashes
+    platforms: [android, react-native]
+    symptoms:
+      - "Embrace shows fewer crashes than Crashlytics"
+      - "Firebase reports more crashes than Embrace"
+      - "missing crashes compared to other reporter"
+      - "crash rate doesn't match Crashlytics"
+      - "Embrace count is lower during a release rollout"
+    root_cause: |
+      All crash reporters capture and group crashes in subtly different ways. The most
+      common sources of mismatch we see between XCOR RUM and Crashlytics/Firebase/Sentry
+      are: different stacktrace grouping algorithms; different definitions of
+      "session" and "crash rate" (denominators differ); restart-to-send behavior
+      (Firebase Crashlytics can flush before next launch in some cases, XCOR RUM flushes
+      on next start); and, for NDK crashes, signal-handler conflict — whichever
+      reporter installs last "wins" and the other loses NDK crashes.
+    repo_checks:
+      - type: grep
+        pattern: "com\\.google\\.firebase\\.crashlytics|io\\.sentry|com\\.bugsnag"
+        languages: [kotlin, java, gradle]
+        purpose: Identify which other reporter is installed alongside XCOR RUM.
+      - type: read
+        path: "app/build.gradle*"
+        purpose: Confirm XCOR RUM SDK version and other reporter versions.
+    mcp_checks:
+      - tool: get_crash_distribution
+        purpose: Compare XCOR RUM crash volume across the window being compared.
+      - tool: get_session_distribution
+        purpose: Rule out a session-count drop — that moves the crash-rate denominator
+          and can look like a crash spike or drop.
+    canonical_answer: |
+      Different crash reporters capture and group crashes in subtly different ways, so
+      side-by-side dashboards rarely match exactly. The most common reasons for an
+      XCOR RUM vs. Crashlytics/Firebase/Sentry mismatch:
+
+      1. Grouping. Each vendor decides which stacktraces count as "the same crash"
+         differently. The same event may aggregate under one signature in Crashlytics
+         and split into two in XCOR RUM (or vice versa). Compare totals, not
+         group-vs-group.
+      2. Crash rate. The denominator (sessions, users, app-foregrounds) is defined
+         differently by each vendor. Crash rate values are not directly comparable.
+      3. Delivery timing. Crashlytics can sometimes flush a crash before the next app
+         launch; XCOR RUM sends on the next start. During an active rollout you'll see
+         Crashlytics react faster — totals catch up later.
+      4. NDK crashes. If you have more than one NDK reporter installed, signal handlers
+         fight and whichever installs last wins. From SDK 7.x we no longer reinstall
+         over other handlers by default — enable `sdk_config.sig_handler_detection = true`
+         to restore the 6.x behavior. See `sig-handler-detection-disabled-in-7x`.
+
+      If long-run totals still don't reconcile after accounting for these, contact
+      XCOR RUM support with the data below.
+    escalate_if:
+      - "Long-run (≥7 day) crash totals differ by >10% after controlling for session count"
+      - "NDK crashes specifically are missing and sig_handler_detection is already enabled"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      SDK version: <android-sdk-version>  (RN SDK version if applicable: <X.Y.Z>)
+      Other reporter in use: <crashlytics|firebase|sentry|other> at <X.Y.Z>
+      Time window compared: <YYYY-MM-DD to YYYY-MM-DD>
+      XCOR RUM total crashes / sessions in window: <count> / <count>
+      Other reporter total crashes / sessions in window: <count> / <count>
+      JVM, NDK, or both: <jvm|ndk|both>
+      sig_handler_detection current value: <true|false|unset>
+      Attached:
+        - app/build.gradle (XCOR RUM plugin block + other reporter deps, without signingConfigs)
+        - embrace-config.json (with api_token redacted, or the `embrace { ... }` block from build.gradle with credentials redacted)
+        - Application.onCreate snippet showing init order of all reporters
+        - Screenshots of both dashboards over the same window
+
+  - id: android-symbol-upload-fails-on-ci
+    title: Mapping / NDK symbol upload fails during Gradle build (CI or local)
+    category: symbolication
+    platforms: [android, react-native]
+    symptoms:
+      - "jvmMappingUploadTask FAILED"
+      - "EmbraceGradlePlugin OkHttpNetworkService exception"
+      - "build fails after upgrading Embrace plugin"
+      - "no mapping file in dashboard for this version"
+      - "ndk symbol upload timeout"
+      - "fail app build if symbol upload"
+      - "LetsEncrypt certificate path build error"
+    root_cause: |
+      The XCOR RUM Gradle plugin posts mapping.txt and NDK symbol files to our backend
+      at build time. The upload can fail for several distinct reasons that present
+      with similar OkHttp errors:
+      - Network egress blocked on the CI runner (firewall, missing CA, proxy).
+      - Mapping file is unusually large and the request times out.
+      - From 7.3.0 the plugin defaults to failing the build if the upload fails;
+        transient network issues now break CI instead of warning.
+      - Task ordering — when a CI plugin (gradle-play-publisher, Bitrise tooling) runs
+        the release task without depending on XCOR RUM's compression/upload task, the
+        upload may be skipped or executed in the wrong order.
+      - Upload disabled in `gradle.properties` and forgotten.
+    repo_checks:
+      - type: grep
+        pattern: "embrace\\.disableMappingFileUpload|embrace\\.disableNdkUploads"
+        paths: ["gradle.properties", "app/gradle.properties"]
+        purpose: Rule out upload-disabled-by-flag before investigating network.
+      - type: grep
+        pattern: "id\\(\"io\\.embrace\\.swazzler\"\\)|apply plugin:.*embrace"
+        paths: ["app/build.gradle*"]
+        purpose: Confirm the XCOR RUM Gradle plugin is applied to the right module.
+      - type: grep
+        pattern: "gradle-play-publisher|com\\.github\\.triplet\\.play"
+        paths: ["**/build.gradle*"]
+        purpose: Flag CI publish plugins that may bypass XCOR RUM's upload task.
+      - type: read
+        path: "app/build/outputs/embrace/mapping/compressed/"
+        purpose: If available locally, check the compressed mapping size.
+    mcp_checks:
+      - tool: get_app_details
+        purpose: Check whether any mapping file is registered for the version under test.
+      - tool: list_crashes
+        purpose: Confirm crashes for this version arrive but are not deobfuscated — that
+          proves the SDK is reporting but symbols never made it server-side.
+    canonical_answer: |
+      The `[EmbraceGradlePlugin] [OkHttpNetworkService] Exception` you're seeing is our
+      plugin failing to post the symbol file. The error message doesn't distinguish
+      root causes, so work through these from most to least common:
+
+      1. Upload disabled. Check `gradle.properties` for
+         `embrace.disableMappingFileUpload=true` or `embrace.disableNdkUploads=true`.
+         These are often left on after a debug run.
+      2. CI egress / certificate. Many CI runners block outbound HTTPS, miss
+         LetsEncrypt intermediate certs, or sit behind a corporate proxy. Confirm
+         `curl https://api.emb-api.com` works from the runner.
+      3. Mapping file too large. R8 mappings >100 MB time out under default settings.
+         Check `app/build/outputs/embrace/mapping/compressed/mapping.txt` — if it's
+         hundreds of MB, this is your cause.
+      4. Fail-on-upload-fail flag. From 7.3.0 we fail the build if the upload fails.
+         Older versions logged a warning. Customers upgrading from <7.3.0 will see
+         previously-silent failures break CI for the first time.
+      5. Task ordering. Plugins like `gradle-play-publisher` can run release tasks
+         without depending on XCOR RUM's compression/upload task — the upload silently
+         skips. Run `./gradlew :app:assembleRelease --dry-run` and look for
+         `jvmMappingCompressionTaskFor*` and `jvmMappingUploadTaskFor*` in the
+         execution order.
+
+      The fix depends on which of these applies. If none of them does, contact
+      XCOR RUM support with the data below.
+    escalate_if:
+      - "Upload disabled flag is off, CI egress confirmed open, mapping file <100 MB, XCOR RUM tasks appear in the dry-run, and upload still fails"
+      - "The user wants to opt out of fail-on-upload-fail per build"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      XCOR RUM Gradle plugin version: <X.Y.Z>
+      AGP version: <X.Y.Z>
+      Gradle version: <X.Y.Z>
+      CI system: <github-actions|bitrise|circleci|jenkins|other>
+      Failure mode: <build-fails|silent-skip|timeout|tls-error>
+      Compressed mapping size: <MB>
+      Triage steps already tried: <text>
+      Attached:
+        - app/build.gradle (the plugins block and the XCOR RUM plugin block, without signingConfigs)
+        - gradle.properties (only the embrace.* lines, credentials redacted)
+        - embrace-config.json (with api_token redacted, or the `embrace { ... }` block from build.gradle with credentials redacted)
+        - Gradle stacktrace from --stacktrace (tokens and credentials redacted)
+        - Output of ./gradlew :app:assembleRelease --dry-run
+
+  - id: sig-handler-detection-disabled-in-7x
+    title: NDK crashes disappear after upgrading from Android SDK 6.x to 7.x
+    category: crashes
+    platforms: [android, react-native]
+    symptoms:
+      - "no NDK crashes after upgrade"
+      - "native crashes stopped appearing"
+      - "ndk crash count dropped to zero in 7.x"
+      - "Crashlytics still gets NDK crashes but Embrace doesn't"
+    root_cause: |
+      From SDK 7.x, XCOR RUM no longer detects and reinstalls itself when another
+      reporter overwrites our NDK signal handlers. In 6.x this was on by default.
+      If the app initializes another NDK reporter (Crashlytics, Sentry, Bugsnag)
+      after XCOR RUM, that reporter takes over the signal handlers and XCOR RUM
+      silently stops capturing native crashes.
+    repo_checks:
+      - type: grep
+        pattern: "com\\.google\\.firebase\\.crashlytics\\.ndk|io\\.sentry.*ndk|bugsnag-android-ndk"
+        languages: [kotlin, java, gradle]
+        purpose: Identify whether another NDK reporter is in the dependency graph.
+      - type: read
+        path: "app/src/main/embrace-config.json"
+        purpose: Check `sdk_config.sig_handler_detection` setting (absent = default
+          false in 7.x).
+      - type: grep
+        pattern: "sig_handler_detection"
+        paths: ["**/embrace-config.json"]
+        purpose: Confirm whether the flag is already set anywhere.
+    mcp_checks:
+      - tool: list_crashes
+        purpose: Confirm NDK crash volume dropped to ~0 after the version that
+          upgraded to 7.x.
+      - tool: get_top_versions
+        purpose: Identify the exact version where the regression started.
+    canonical_answer: |
+      From SDK 7.x we no longer auto-reinstall our NDK signal handlers when another
+      reporter overwrites them. In 6.x this was on by default; in 7.x it's opt-in.
+      If you have Crashlytics, Sentry, or any other NDK reporter initialized in your
+      app, they're taking the signal handlers and we're not getting NDK crashes
+      anymore.
+
+      Restore the 6.x behavior by adding to your `embrace-config.json`:
+
+      ```json
+      {
+        "sdk_config": {
+          "sig_handler_detection": true
+        }
+      }
+      ```
+
+      JVM (Kotlin/Java) crashes are unaffected — those use a separate
+      uncaught-exception handler chain that already passes through.
+    escalate_if:
+      - "sig_handler_detection is true and NDK crashes are still missing"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Previous SDK version (NDK crashes worked): <6.X.Y>
+      Current SDK version (NDK crashes missing): <7.X.Y>
+      Other NDK reporters in use: <crashlytics|sentry|bugsnag|other> at <X.Y.Z>
+      sig_handler_detection current value: <true|false|unset>
+      Attached:
+        - embrace-config.json (with api_token redacted)
+        - Application.onCreate snippet showing init order of all crash reporters
+        - app/build.gradle (XCOR RUM + other NDK reporter deps, without signingConfigs)
+
+  - id: streamhandler-factory-nosuchmethod-crash
+    title: NoSuchMethodError crash in StreamHandlerFactoryInstaller$WrappingFactory.openConnection
+    category: crashes
+    platforms: [android, react-native]
+    symptoms:
+      - "NoSuchMethodError at StreamHandlerFactoryInstaller"
+      - "openConnection crash"
+      - "Firebase Storage crashes since adding Embrace"
+      - "Firebase Auth crashes since adding Embrace"
+      - "Class.getDeclaredMethod crash with embrace in stack"
+    root_cause: |
+      Our HttpURLConnection instrumentation wraps `URL.openConnection` via a custom
+      URLStreamHandlerFactory. On some Android API levels, Firebase Storage / Firebase
+      Auth / similar libraries call into a reflective `Class.getDeclaredMethod` path
+      that the wrapper does not currently handle, surfacing as a NoSuchMethodError at
+      the `openConnection` frame.
+
+      This is a known issue with no fix in the current SDK.
+    repo_checks:
+      - type: grep
+        pattern: "firebase-storage|firebase-auth"
+        paths: ["**/build.gradle*"]
+        purpose: Confirm the at-risk Firebase modules are present.
+      - type: grep
+        pattern: "embraceConfig|embrace \\{"
+        paths: ["app/build.gradle*"]
+        purpose: Find the current XCOR RUM plugin configuration to advise the workaround.
+    mcp_checks:
+      - tool: list_crashes
+        purpose: Confirm the crash signature contains
+          `StreamHandlerFactoryInstaller$WrappingFactory$1.openConnection`.
+      - tool: get_crash_stack_samples
+        purpose: Pull a representative stack to attach to the escalation.
+    canonical_answer: |
+      This is a known issue. The crash happens inside our
+      HttpURLConnection instrumentation when certain Firebase classes (Storage, Auth)
+      call into our `openConnection` wrapper through a reflective path we don't yet
+      handle.
+
+      There is no one-line fix. As an interim workaround, you can disable
+      bytecode-instrumented HUC capture for the affected build via the XCOR RUM Gradle
+      plugin configuration — see
+      https://embrace.io/docs/android/configuration/embrace-gradle-plugin/#configure-the-embrace-gradle-plugin
+      for the current option name in your plugin version. Disabling this turns off
+      auto-capture of HttpURLConnection-based network calls in that module.
+
+      Contact XCOR RUM support with the data below to confirm whether your stack
+      matches this issue.
+    escalate_if:
+      - "always"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      RN SDK version (if applicable): <X.Y.Z>
+      Crash signature: java.lang.NoSuchMethodError at
+        io.embrace.android.embracesdk.internal.network.http
+        .StreamHandlerFactoryInstaller$WrappingFactory$1.openConnection
+      Triggering library: <firebase-storage|firebase-auth|other> at <X.Y.Z>
+      Affected Android API levels (from crash data): <list>
+      Crash count over last 7 days: <count>
+      Attached:
+        - Full crash stack sample (from get_crash_stack_samples, personal data redacted)
+        - app/build.gradle (XCOR RUM plugin block + Firebase deps, without signingConfigs)
+        - Application.onCreate snippet showing XCOR RUM + Firebase init order
+        - List of Android API levels seeing the crash
+
+  - id: rn-android-missing-application-class
+    title: React Native app has no native Android initialization because no Application class exists
+    category: rn
+    platforms: [android, react-native]
+    symptoms:
+      - "iOS works but Android shows no sessions"
+      - "Android has partial data compared to iOS"
+      - "no Application class in my project"
+      - "where do I put Embrace.start on Android for RN"
+      - "I added Embrace to package.json but Android isn't reporting"
+    root_cause: |
+      Our React Native integration requires native init on both iOS and Android. On
+      Android, the app is expected to call `Embrace.getInstance().start(this)` in
+      its `Application.onCreate()`. Some React Native project templates ship without
+      a custom Application subclass — `android:name` under `<application>` in
+      `AndroidManifest.xml` is either absent or points at `android.app.Application`.
+      There is nowhere for the native start call to go, so the Android SDK never
+      starts and we receive iOS-only data despite the JS-side init succeeding.
+    repo_checks:
+      - type: grep
+        pattern: "\"react-native\""
+        paths: ["package.json"]
+        purpose: Confirm this is a React Native project.
+      - type: grep
+        pattern: "android:name=\""
+        paths: ["android/app/src/main/AndroidManifest.xml"]
+        purpose: Identify the declared Application class. Missing attribute or
+          `android.app.Application` means there's no custom subclass.
+      - type: glob
+        pattern: "android/app/src/main/java/**/*Application*.{kt,java}"
+        purpose: Confirm whether a custom Application class file exists at all.
+      - type: grep
+        pattern: "Embrace\\.getInstance\\(\\)\\.start|embrace\\.start\\("
+        paths: ["android/app/src/main/**/*.{kt,java}"]
+        purpose: Find any existing native start call.
+    mcp_checks:
+      - tool: list_apps
+        purpose: Confirm an Android app entry exists alongside the iOS counterpart.
+      - tool: get_session_distribution
+        purpose: Confirm Android sessions are absent or far below iOS for the same
+          app over the same window.
+    canonical_answer: |
+      Our React Native integration needs native init on both platforms. On Android,
+      that means calling `Embrace.getInstance().start(this)` from your
+      `Application.onCreate()`.
+
+      Your project doesn't have a custom Application subclass — the React Native
+      template you used didn't ship one, so `android:name` under `<application>` in
+      your `AndroidManifest.xml` is either absent or pointing at the default
+      `android.app.Application`. There's nowhere for the native start call to go, so
+      the Android SDK never starts. That's why iOS reports data and Android doesn't.
+
+      Fix in three steps:
+
+      1. Create `android/app/src/main/java/<your.package>/MainApplication.kt` (or
+         `.java` if your project predates RN 0.73) extending `Application` and
+         calling `Embrace.getInstance().start(this)` in `onCreate()` — our React
+         Native getting-started docs have the exact snippet.
+      2. Declare it in `android/app/src/main/AndroidManifest.xml` on the
+         `<application>` element: `android:name=".MainApplication"`.
+      3. Rebuild and confirm Android sessions begin appearing in the dashboard.
+
+      The JS-side init you already have is correct and doesn't change.
+    escalate_if:
+      - "AndroidManifest already declares a custom Application class, the start call is present in onCreate, and Android sessions are still missing"
+    escalation_template: |
+      Customer: <name>
+      App ID (Android): <app_id>
+      App ID (iOS, for comparison): <app_id>
+      RN SDK version: <X.Y.Z>
+      Android SDK version: <X.Y.Z>
+      AndroidManifest android:name value: <text|absent>
+      Custom Application class file path: <path|none>
+      Attached:
+        - android/app/src/main/AndroidManifest.xml
+        - The Application class file (.kt / .java) if it exists
+        - package.json (RN version + XCOR RUM JS package version)
+        - android/app/build.gradle (XCOR RUM Gradle plugin block + config, without signingConfigs)
+        - embrace-config.json (Android, with api_token redacted)
+        - JS-side init snippet (where `initialize()` is called)
+
+  - id: embrace-disable-illegal-state-pre-8-3-1
+    title: IllegalStateException("SDK not initialized") after calling Embrace.disable()
+    category: api
+    platforms: [android, react-native]
+    symptoms:
+      - "IllegalStateException SDK not initialized"
+      - "addBreadcrumb crashes after disable"
+      - "Embrace.disable then addBreadcrumb crashes"
+      - "non-fatal SDK not initialized after consent flow"
+    root_cause: |
+      Up to SDK 8.3.0, calling `Embrace.getInstance().disable()` and then invoking a
+      public API method (`addBreadcrumb`, `setUserIdentifier`, etc.) could throw
+      `IllegalStateException("SDK not initialized")`. Some methods (`logMessage`) were
+      wrapped in `runCatching` and swallowed the error; others — including
+      `addBreadcrumb` — were not, and the exception crashed the app.
+
+      Common pattern that triggers it: start the SDK in
+      `Application.onCreate()` → immediately call `disable()` while waiting for user
+      consent → user interacts with code that calls a public API → crash.
+
+      Fixed in 8.3.1 (PRs #3326 and #3328, commit `af4c34dd0`).
+    repo_checks:
+      - type: grep
+        pattern: "Embrace\\.getInstance\\(\\)\\.disable\\(\\)|Embrace\\.disable\\("
+        languages: [kotlin, java]
+        purpose: Locate disable() call sites and confirm the app uses this flow.
+      - type: read
+        path: "app/build.gradle*"
+        purpose: Read the current Android SDK version. <8.3.1 is at-risk.
+    mcp_checks:
+      - tool: list_crashes
+        purpose: "Confirm the crash signature is `java.lang.IllegalStateException: SDK not initialized` originating in `EmbraceImpl` or related call paths."
+    canonical_answer: |
+      This is a known issue in Android SDK versions up to 8.3.0. Calling
+      `Embrace.disable()` and then any public API method (like `addBreadcrumb`)
+      could crash with `IllegalStateException("SDK not initialized")` because the
+      internal start-check state wasn't reset on disable.
+
+      Fix: upgrade to **Android SDK 8.3.1 or later**. The fix is in commit
+      `af4c34dd0` on `embrace-android-sdk` (PRs #3326 / #3328).
+
+      If you can't upgrade right now, avoid calling public API methods on the
+      XCOR RUM SDK while it's disabled — gate them behind your own "is consent
+      granted" flag.
+    escalate_if:
+      - "The app is on 8.3.1+ and still sees IllegalStateException from EmbraceImpl"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      RN SDK version (if applicable): <X.Y.Z>
+      Crash signature: java.lang.IllegalStateException: SDK not initialized
+      Originating frame: <e.g. EmbraceImpl, SdkCallChecker>
+      Public API method that triggered it: <addBreadcrumb|setUserIdentifier|other>
+      Customer flow that hits the crash: <text — usual: start → disable() → API call>
+      Crash count over last 7 days: <count>
+      Attached:
+        - Full crash stack from get_crash_stack_samples, personal data redacted
+        - Application.onCreate snippet showing init + disable() flow
+        - app/build.gradle (XCOR RUM SDK version, without signingConfigs)
+
+  - id: agp-8-strips-embrace-config-json
+    title: embrace-config.json stripped at compile time after upgrading AGP
+    category: linking
+    platforms: [android, react-native]
+    symptoms:
+      - "embrace-config.json stripped at compile time"
+      - "config file missing in built APK"
+      - "build fails after AGP upgrade"
+      - "no app_id resolved at runtime"
+      - "Embrace says config not found after AGP 8 upgrade"
+    root_cause: |
+      Newer AGP versions (8.x+) tightened how `assets/` and merged-resource handling
+      work. On older XCOR RUM Gradle plugin versions, the `embrace-config.json` file
+      sits in a location that AGP's new asset/resource merging strips or doesn't
+      propagate into the final APK. The SDK then can't resolve the App ID at runtime
+      and either crashes at start or fails silently.
+
+      The pattern surfaces most often when an app is on an old XCOR RUM SDK
+      (6.x / 7.x) and bumps AGP independently.
+    repo_checks:
+      - type: read
+        path: "app/build.gradle*"
+        purpose: Read AGP version (`com.android.tools.build:gradle` in buildscript or
+          plugins block) and current XCOR RUM SDK / Gradle plugin version.
+      - type: glob
+        pattern: "**/embrace-config.json"
+        purpose: Locate every embrace-config.json in the project and note which
+          sourceSets / variants own them.
+      - type: grep
+        pattern: "com\\.android\\.tools\\.build:gradle"
+        paths: ["**/build.gradle*", "settings.gradle*"]
+        purpose: Confirm the AGP version that triggered the regression.
+    mcp_checks:
+      - tool: get_app_details
+        purpose: Confirm no data is arriving for the affected app version.
+      - tool: get_top_versions
+        purpose: Identify the version (correlated with the AGP bump) where ingestion
+          stopped.
+    canonical_answer: |
+      Newer AGP versions changed how asset and resource merging work, and older
+      XCOR RUM plugin versions had `embrace-config.json` in a location that AGP now
+      strips before packaging. The SDK can't find the config at runtime, so the App
+      ID never resolves and we don't receive data for that build.
+
+      Two-part fix:
+
+      1. Upgrade the XCOR RUM Android SDK and Gradle plugin together to a current
+         release, since recent versions track AGP compatibility.
+      2. Confirm `embrace-config.json` is in `app/src/main/` (the canonical
+         location). If you have per-flavor configs, each should live under
+         `app/src/<flavor>/embrace-config.json`.
+
+      Rebuild and use APK Analyzer (or `unzip -l app-release.apk | grep embrace`)
+      to verify the file is in the packaged APK before running again.
+    escalate_if:
+      - "Both the XCOR RUM SDK and Gradle plugin are on current versions and embrace-config.json is still being stripped"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      AGP version (current / previous if known): <X.Y.Z> / <X.Y.Z>
+      XCOR RUM Android SDK version: <X.Y.Z>
+      XCOR RUM Gradle plugin version: <X.Y.Z>
+      embrace-config.json location(s) in project: <path(s)>
+      Build flavors / variants in use: <list>
+      Verified missing from final APK: <yes|no — describe how confirmed>
+      Attached:
+        - app/build.gradle (the plugins block and the XCOR RUM plugin block, without signingConfigs)
+        - settings.gradle (plugins block)
+        - gradle.properties (only the embrace.* lines, credentials redacted)
+        - Output of: unzip -l <release-apk> | grep embrace
+        - Project tree showing config file locations
+
+  - id: okhttp-version-transitive-conflict
+    title: Unexpected OkHttp version in dependency graph after XCOR RUM upgrade
+    category: linking
+    platforms: [android, react-native]
+    symptoms:
+      - "Embrace 8.x brings OkHttp 5.x"
+      - "OkHttp 5 in dependency graph after upgrade"
+      - "want to keep OkHttp 4.x but Embrace pulled 5.x"
+      - "transitive OkHttp version conflict"
+    root_cause: |
+      XCOR RUM's dependency graph (including transitive deps like
+      `opentelemetry-exporter-sender-okhttp`) can resolve to a higher OkHttp
+      version than the app targets. Gradle's default resolution picks
+      the highest version among declared and transitive constraints. Customers on
+      OkHttp 4.x who bump XCOR RUM can find OkHttp 5.x in the resolved graph and
+      worry about runtime impact on their app code that uses OkHttp directly.
+    repo_checks:
+      - type: grep
+        pattern: "com\\.squareup\\.okhttp3:okhttp"
+        paths: ["**/build.gradle*"]
+        purpose: Find any explicit OkHttp version declarations.
+      - type: read
+        path: "app/build.gradle*"
+        purpose: Confirm current XCOR RUM SDK version.
+    mcp_checks: []
+    canonical_answer: |
+      XCOR RUM itself doesn't directly add OkHttp 5.x as a first-party dependency,
+      but it can come in transitively (for example via
+      `opentelemetry-exporter-sender-okhttp`). Gradle resolves to the highest
+      version in the graph, so an XCOR RUM bump can surface a higher OkHttp than
+      you declared.
+
+      To see exactly what's bringing OkHttp 5.x in:
+
+      ```
+      ./gradlew :app:dependencyInsight --dependency com.squareup.okhttp3:okhttp \
+        --configuration releaseRuntimeClasspath
+      ```
+
+      If you need to pin a specific OkHttp version, use Gradle's standard
+      mechanisms (`resolutionStrategy.force`, `strictly`, or a constraint block).
+      Note that XCOR RUM doesn't officially support OkHttp versions below what's
+      in our resolved graph — overriding works in most projects but isn't a
+      tested configuration.
+    escalate_if:
+      - "The resolved graph shows OkHttp 5.x sourced directly from io.embrace and not from any transitive dep"
+      - "A runtime regression tied to OkHttp appears after the XCOR RUM upgrade"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      XCOR RUM Gradle plugin version: <X.Y.Z>
+      OkHttp version expected: <4.X.Y>
+      OkHttp version resolved (after XCOR RUM upgrade): <5.X.Y>
+      Attached:
+        - Full output of: ./gradlew :app:dependencyInsight --dependency
+          com.squareup.okhttp3:okhttp --configuration releaseRuntimeClasspath
+        - app/build.gradle (XCOR RUM + OkHttp deps, without signingConfigs)
+        - Any runtime errors observed
+
+  - id: android-logs-no-automatic-stacktrace
+    title: XCOR RUM Android logs don't include stacktraces automatically
+    category: logging
+    platforms: [android, react-native]
+    symptoms:
+      - "no stacktrace on Android logs"
+      - "iOS logs have stack but Android doesn't"
+      - "high INFO log volume on Android"
+      - "where is the stacktrace in my error logs"
+      - "logMessage doesn't include the call stack"
+    root_cause: |
+      On Android, `Embrace.getInstance().logMessage(...)` records the message
+      string and severity, but does not automatically capture the call-site
+      stacktrace. Customers comparing against iOS — where stacktraces are richer
+      for some log pathways — often expect parity and don't realize the
+      explicit-stacktrace APIs exist on Android.
+    repo_checks:
+      - type: grep
+        pattern: "Embrace\\.getInstance\\(\\)\\.logMessage|embrace\\.logMessage|logCustomStacktrace|logException"
+        languages: [kotlin, java]
+        purpose: Find current log call sites and check whether the app is
+          using the stacktrace-aware APIs.
+    mcp_checks:
+      - tool: get_log_distribution
+        purpose: Confirm the volume in question and break down
+          by severity.
+      - tool: list_logs
+        purpose: Inspect representative log payloads to confirm stacktrace fields
+          are absent.
+    canonical_answer: |
+      On Android, `logMessage()` records the message string and severity but does
+      not automatically capture a stacktrace. To attach one explicitly, use either:
+
+      - `logCustomStacktrace(message, severity, stacktraceElements, properties)` —
+        pass a custom stacktrace (e.g. `Thread.currentThread().stackTrace`).
+      - `logException(message, severity, throwable, properties)` — pass a
+        `Throwable` and its stacktrace is recorded.
+
+      Both work at any severity level (INFO, WARNING, ERROR).
+
+      If your concern is high INFO-log volume, the question is usually not
+      about missing stacktraces but about *which logs are accumulating* — pull
+      the log distribution by source/severity and triage from there.
+    escalate_if:
+      - "The app uses logException/logCustomStacktrace and the stack is still missing from the dashboard"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      Log API being called: <logMessage|logException|logCustomStacktrace>
+      Severity: <info|warning|error>
+      Sample log payload (from list_logs, personal data redacted): <attach>
+      Expected behavior: <text>
+      Attached:
+        - Source snippet showing the log call site
+        - Sample log entry from list_logs / get_log_details (personal data redacted)
+
+  - id: android-no-sessions-or-only-background
+    title: Android shows no sessions, or only background sessions
+    category: session
+    platforms: [android, react-native]
+    symptoms:
+      - "no sessions in Embrace dashboard"
+      - "Embrace SDK initialized but no session data"
+      - "only background sessions appearing"
+      - "Finish Integration label despite sessions"
+      - "sessions visible at home but not at customer site"
+    root_cause: |
+      Android sessions can be missing for several distinct reasons that present
+      similarly. From most to least common:
+      - `androidx.startup.InitializationProvider` is disabled in
+        `AndroidManifest.xml` (often unintentionally, via a manifest merge that
+        strips it). Without it the SDK never receives lifecycle callbacks and
+        can't open sessions.
+      - `Embrace.getInstance().start(this)` is called late or off the main thread,
+        so the early lifecycle callbacks are missed and only background sessions
+        are recorded.
+      - Network egress is blocked on some networks (corporate sites behind a
+        firewall, sandboxed CI test devices). Sessions are captured and cached
+        on-device but never uploaded.
+      - The dashboard's "Finish Integration" label persists despite sessions
+        being ingested — this is a dashboard state issue, not an SDK problem.
+    repo_checks:
+      - type: grep
+        pattern: "androidx\\.startup\\.InitializationProvider"
+        paths: ["**/AndroidManifest.xml"]
+        purpose: Confirm the InitializationProvider isn't removed. Look for
+          `tools:node=\"remove\"` or `tools:node=\"replace\"` on it.
+      - type: grep
+        pattern: "Embrace\\.getInstance\\(\\)\\.start|embrace\\.start\\("
+        languages: [kotlin, java]
+        purpose: Locate the SDK start call and verify it's in `Application.onCreate`.
+      - type: read
+        path: "app/src/main/AndroidManifest.xml"
+        purpose: Inspect the full <application> element for any tools:node directives.
+    mcp_checks:
+      - tool: get_session_distribution
+        purpose: Confirm whether sessions exist at all and what proportion are
+          background vs foreground.
+      - tool: get_app_details
+        purpose: Confirm the app is in the right state and has recent data.
+    canonical_answer: |
+      "No sessions on Android" almost always traces to one of three causes —
+      let's rule them out in order:
+
+      1. `androidx.startup` is disabled. Our SDK relies on
+         `androidx.startup.InitializationProvider` to receive lifecycle callbacks.
+         Some apps (or libraries) disable it via `tools:node="remove"` on the
+         `<provider>` in `AndroidManifest.xml`. Search the merged manifest for
+         that provider; if it's missing or stripped, restore it (the WorkManager
+         docs show the right merge pattern). The most common offender is an app
+         that wanted to disable just the WorkManager initializer but removed the
+         whole provider.
+      2. Start call timing. Confirm `Embrace.getInstance().start(this)` is the
+         first thing in your `Application.onCreate()` and runs on the main
+         thread. If it's deferred or runs on a background thread, the SDK misses
+         lifecycle events and only background sessions are recorded.
+      3. Network egress. If sessions appear on some networks but not others,
+         suspect a network policy on the affected network. The SDK caches sessions
+         on-device and retries on next launch — they should appear when the
+         device reaches a network that allows outbound to `*.emb-api.com`.
+
+      The dashboard "Finish Integration" label is a separate UI signal — if
+      you're seeing sessions in `get_session_distribution`, that label is
+      incorrect (report it to XCOR RUM support) and doesn't indicate a real
+      ingestion problem.
+    escalate_if:
+      - "All three causes ruled out: InitializationProvider present, start() is first in onCreate on main thread, egress confirmed open — still no sessions"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      RN SDK version (if applicable): <X.Y.Z>
+      Sessions observed (last 24h): <count> total, <count> foreground, <count> background
+      InitializationProvider state: <present|removed|replaced — quote the manifest line>
+      Embrace.start call location: <file:line>
+      Embrace.start thread: <main|background|unsure>
+      Network egress confirmed open: <yes|no|unknown>
+      Affected user/device population: <all|specific locations|specific devices>
+      Attached:
+        - Merged AndroidManifest.xml (./gradlew :app:processReleaseManifest)
+        - Application class file (.kt / .java)
+        - app/build.gradle (XCOR RUM block + Gradle plugin, without signingConfigs)
+        - embrace-config.json (with api_token redacted)
+
+  - id: rn-android-startup-trace-volume-gap
+    title: emb-app-startup-cold span count far below session count on RN + Android
+    category: rn
+    platforms: [android, react-native]
+    symptoms:
+      - "millions of sessions but very few startup spans"
+      - "no emb-app-startup-cold for most sessions"
+      - "startup trace missing on RN Android"
+      - "cold start trace not appearing"
+    root_cause: |
+      On React Native + Android, we've observed cases where `emb-app-startup-cold`
+      span volume is orders of magnitude smaller than session volume (e.g. 2M
+      sessions, ~80 startup spans). The root cause is not confirmed — it may be a
+      function of how the RN host process initializes the SDK relative to the JS
+      bridge — and there is no known workaround.
+    repo_checks:
+      - type: grep
+        pattern: "Embrace\\.getInstance\\(\\)\\.start|embrace\\.start\\("
+        paths: ["android/app/src/main/**/*.{kt,java}"]
+        purpose: Locate native start call; confirm it's in Application.onCreate.
+      - type: read
+        path: "package.json"
+        purpose: Capture the React Native and XCOR RUM JS package versions.
+    mcp_checks:
+      - tool: get_session_distribution
+        purpose: Quantify the session volume to compare against the startup span count.
+      - tool: list_root_spans
+        purpose: Confirm `emb-app-startup-cold` span volume in the same window.
+      - tool: get_top_versions
+        purpose: Identify the Android + RN SDK versions where this is observed.
+    canonical_answer: |
+      On RN + Android, the cold-startup span count can be far below the session
+      count. There is no confirmed root cause or workaround, so this is a known
+      issue.
+
+      Two things worth confirming on your side:
+
+      1. The native start call (`Embrace.getInstance().start(this)`) is the
+         first statement in `Application.onCreate()` and runs on the main
+         thread. Anything deferred can throw off the startup window.
+      2. You aren't doing custom process management (e.g. starting RN in a
+         separate process) that would change which process the SDK initializes in.
+
+      Contact XCOR RUM support with the data below.
+    escalate_if:
+      - "always"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Android SDK version: <X.Y.Z>
+      RN SDK version: <X.Y.Z>
+      React Native version: <X.Y.Z>
+      Time window: <YYYY-MM-DD to YYYY-MM-DD>
+      Session count in window: <count>
+      emb-app-startup-cold span count in window: <count>
+      Ratio: <span/session>
+      Native start call location: <file:line>
+      Custom process management in app: <yes|no — describe>
+      Attached:
+        - android/app/src/main/AndroidManifest.xml
+        - Application class file (.kt / .java)
+        - app/build.gradle (XCOR RUM block, without signingConfigs)
+        - package.json
+        - Screenshots or links to the session count vs span count dashboards
+
+  - id: push-fcm-title-body-dropped-by-loader
+    title: FCM / push notification title and body are never shown in the dashboard
+    category: push
+    platforms: [android, ios, react-native]
+    symptoms:
+      - "push notification title missing in dashboard"
+      - "FCM body not visible in Embrace"
+      - "capture_fcm_pii_data is true but I don't see title/body"
+      - "captureData: true on iOS but Embrace dashboard shows no title"
+    root_cause: |
+      Both mobile SDKs capture push title and body as span event attributes when
+      the app opts in (`sdk_config.capture_fcm_pii_data: true` on Android,
+      `PushNotificationCaptureService.Options(captureData: true)` on iOS). The
+      payload arrives at the XCOR RUM backend correctly.
+
+      However, the backend currently extracts only a fixed set of fields
+      (id, category, from, type, priority, badge) when mapping span events into
+      the session payload that the dashboard consumes. Title and body are dropped
+      at that mapping step, so the dashboard never displays them even though the
+      SDK captured them.
+
+      This is a backend gap — the SDK is doing its job. No code change on the
+      app side can recover the field visibility.
+    repo_checks:
+      - type: grep
+        pattern: "capture_fcm_pii_data|captureData|PushNotificationCaptureService"
+        languages: [kotlin, java, swift, objc]
+        purpose: Confirm the app has opted in to PII capture.
+      - type: read
+        path: "app/src/main/embrace-config.json"
+        purpose: Verify `sdk_config.capture_fcm_pii_data` is set to true on Android.
+    mcp_checks:
+      - tool: list_logs
+        purpose: Sanity-check whether any push-related events are arriving with
+          the captured fields present in raw payload.
+    canonical_answer: |
+      Your SDK is doing the right thing. When you opt in
+      (`capture_fcm_pii_data: true` on Android,
+      `PushNotificationCaptureService.Options(captureData: true)` on iOS), the
+      notification's title and body are captured and sent to XCOR RUM as span
+      event attributes.
+
+      The issue is on the backend: the step that maps span events into the
+      session payload the dashboard reads currently extracts only a fixed set of
+      fields (id, category, from, type, priority, badge). Title and body are
+      dropped at that step. The dashboard never sees them.
+
+      This is a backend gap, not something you can fix in your app. Contact
+      XCOR RUM support with the data below.
+    escalate_if:
+      - "always"
+    escalation_template: |
+      Customer: <name>
+      App ID: <app_id>
+      Platform: <android|ios|react-native>
+      SDK version: <X.Y.Z>
+      Opt-in confirmed: <yes — quote config line>
+      Customer impact: dashboard never displays push title/body fields
+      Attached:
+        - embrace-config.json (Android, with api_token redacted) or capture options snippet (iOS)
+        - Sample push-related span event payload if accessible (push title and body redacted)
