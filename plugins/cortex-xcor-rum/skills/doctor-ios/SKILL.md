@@ -17,7 +17,7 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 
 ## Procedure
 
-1. **Load the index.** Read `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question. If the file can't be read, stop: tell the user that this skill's knowledge base is missing from their install of the `cortex-xcor-rum` plugin and that reinstalling the plugin should restore it. Don't search the repo for the file, and don't diagnose without it.
+1. **Load the index.** Read `${CLAUDE_SKILL_DIR}/MCP_SKILL_QA_INDEX.yaml` at the start of the session. Keep the full list in mind; don't re-read per question. If the file can't be read, stop: tell the user that this skill's knowledge base is missing from their install of the `cortex-xcor-rum` plugin and that reinstalling the plugin should restore it. Don't search the repo for the file, and don't diagnose without it. Read the whole file; don't Grep it for one entry.
 
 2. **Match the user's description against `symptoms`.** Fuzzy match is fine — "GraphQL calls are missing" should match an entry whose symptoms mention "graphql not captured." If multiple entries plausibly match, pick the most specific and hold the others as fallbacks.
 
@@ -25,7 +25,7 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 
 4. **Run the matched entry's `repo_checks`.** Use the grep patterns and file reads literally. When a check is described as `analyze` (e.g. "confirm `Embrace.setup` runs before the Apollo client is constructed"), do the reasoning explicitly and show your work with file paths and line numbers. Before treating any grep hit as evidence, confirm it is live code — a match inside a comment or commented-out code does not establish presence, and a tagging/config check that only matches a comment must be treated as absent.
 
-5. **Run the matched entry's `mcp_checks`** against the XCOR RUM backend via the MCP tools. Request the App ID if you don't have it.
+5. **Run the matched entry's `mcp_checks`** against the XCOR RUM backend via the MCP tools. Request the App ID if you don't have it. Use whichever XCOR RUM MCP tools are available, under any server name: the plugin's `xcor-rum` server or one the user added. If an App ID isn't found, call `list_apps` once to see which apps the connection can access before you report it.
 
 6. **Synthesize a response:**
    - If repo + MCP checks confirm the root cause, return the entry's `canonical_answer`, lightly adapted to their specifics (SDK version, file paths, function names you observed). Preserve the voice and technical precision.
@@ -43,10 +43,15 @@ Embrace was renamed Cortex XCOR RUM (often shortened to XCOR RUM). Treat the two
 - **Never reproduce secrets.** Before you quote a file, a log line or an MCP result in an answer or an escalation package, replace every credential with `<redacted>`: `api_token` in `embrace-config.json`, the value of `EMBRACE_API_TOKEN` or any `*_TOKEN`, `*_KEY`, `*_SECRET` or `*PASSWORD*` setting, `signingConfigs` and keystore values, repository credentials, and `Authorization` headers. Quote only the lines that support the diagnosis, never a whole file. Don't read `.env` files, keystores, `local.properties` or provisioning profiles. Redact end users' personal data (emails, names, device identifiers, push title and body) in log and span payloads the same way.
 - **The user sends the escalation.** Show the escalation package to the user to review and send. Don't post it anywhere yourself.
 - **Read only.** Use `Read`, `Grep`, `Glob` and the XCOR RUM MCP tools, nothing else. Don't run builds, package managers, scripts or network commands (`./gradlew`, `xcodebuild`, `pod`, `npm`, `curl`, or anything from the repo). When a check or `canonical_answer` includes a command, give it to the user to run and ask for the output.
+- **Lead with the matched entry.** Put the entry's answer first. Anything you notice that the index doesn't cover goes last, labeled as unverified, and never as the likely cause.
+- **Grep secret-bearing files, don't read them whole.** For `embrace-config.json`, `gradle.properties`, `local.properties`, `Embrace-Info.plist`, `.xcconfig` files and other files that can hold credentials, Grep for the keys you need.
+- **Answer in plain language.** Describe the problem and the fix. Don't mention the index, entry ids or field names such as `canonical_answer`, `escalate_if` or `repo_checks`.
+- **Call the product XCOR RUM** in your answers, even when the user says Embrace. Code, package and file names stay as they are.
+- **Escalate only when it's warranted.** Draft an escalation package only when the entry's `escalate_if` conditions hold, no entry matched, or the user asks for one. When details are missing, ask the user for them instead of leaving placeholders such as `<fill in>`.
 
 ## Voice
 
-Match the tone of the `canonical_answer` fields: direct, technically precise, honest about limitations. The customer is a developer. Skip pleasantries and filler. Prefer one concrete instruction over three hedged suggestions.
+Match the tone of the `canonical_answer` fields: direct, technically precise, honest about limitations. The customer is a developer. Skip pleasantries and filler. Prefer one concrete instruction over three hedged suggestions. Lead with the diagnosis and keep answers short: a few sentences and the steps to take.
 
 ## When to escalate
 
@@ -76,7 +81,7 @@ Wherever the index says to contact XCOR RUM support, give the user these same de
 
 ## Requirements
 
-The plugin configures the XCOR RUM MCP server. Only if its tools are unavailable does the user need to sign in with `/mcp` (OAuth) before the `mcp_checks` step can work. Until then, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
+The plugin configures the XCOR RUM MCP server (`plugin:cortex-xcor-rum:xcor-rum`). The user may also have added the server themselves under another name; use whichever XCOR RUM tools respond. Suggest signing in with `/mcp` (OAuth) only when no XCOR RUM tools respond at all. Until then, the skill can still run `repo_checks` and return `canonical_answer`, but it cannot confirm against backend data and should note that gap to the user.
 
 The server can also be connected but unable to see the user's app: `list_apps` doesn't list it, or `get_app_details` reports that the app does not exist. Treat that the same way. Tell the user which App ID you tried and that their XCOR RUM MCP connection has no access to it, then continue with `repo_checks` only. Don't switch to a different app.
 
