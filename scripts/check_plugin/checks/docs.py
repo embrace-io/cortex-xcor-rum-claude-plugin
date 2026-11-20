@@ -12,7 +12,7 @@ from ..config import (
     PLUGIN_README_REL,
     ROOT_README_REL,
 )
-from ..report import Issue
+from ..report import Issue, Severity
 from ..repo import Repo
 
 
@@ -24,7 +24,13 @@ def check_docs(repo: Repo) -> Iterator[Issue]:
         if command not in root_readme:
             yield Issue(ROOT_README_REL, f"skill table doesn't list {command}")
         if command not in plugin_readme:
-            yield Issue(PLUGIN_README_REL, f"skill list doesn't mention {command}")
+            # The root README's table is the list users rely on, so a gap in the
+            # plugin README's shorter list is worth a reminder, not a red build.
+            yield Issue(
+                PLUGIN_README_REL,
+                f"skill list doesn't mention {command}",
+                Severity.WARN,
+            )
 
     manifest = repo.json(MANIFEST_REL).data
     version = manifest.get("version") if isinstance(manifest, dict) else None

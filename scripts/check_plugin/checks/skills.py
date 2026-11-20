@@ -6,7 +6,7 @@ from typing import Iterator
 
 from ..config import (
     DESCRIPTION_CAP,
-    SECRETS_PHRASE,
+    SECRETS_RULE,
     SKILL_DIR_REF,
     SKILLS_REL,
 )
@@ -71,11 +71,12 @@ def check_skill_refs(repo: Repo) -> Iterator[Issue]:
 
 
 def check_secrets_rule(repo: Repo) -> Iterator[Issue]:
-    """Every SKILL.md carries the hard rule that starts 'Never reproduce secrets'."""
+    """Every SKILL.md has a hard rule that tells Claude to redact secrets."""
     for skill in repo.skills():
         text = repo.text(skill.skill_md)
-        if text is not None and SECRETS_PHRASE not in text:
+        if text is not None and not SECRETS_RULE.search(text):
             yield Issue(
                 skill.skill_md,
-                f"missing the hard rule that starts '{SECRETS_PHRASE}'",
+                "missing the secrets hard rule: a list item that says to redact "
+                "secrets, such as 'Never reproduce secrets'",
             )

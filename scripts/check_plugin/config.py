@@ -47,7 +47,13 @@ SKIP_DIRS = frozenset({".git", ".agentd", "node_modules"})
 # otherwise fail on the strings that prove the checks work.
 CONTENT_CHECK_SKIP_PREFIXES = ("scripts/check_plugin/", "tests/")
 
-SECRETS_PHRASE = "Never reproduce secrets"
+# The secrets hard rule is found by meaning, not exact wording: a list item
+# that mentions secrets and redaction. Rewording the rule shouldn't fail CI.
+SECRETS_RULE = re.compile(r"^\s*[-*].*\bsecrets?\b.*\bredact", re.I | re.M)
+# Files whose prose the naming check reads: what the plugin ships and the
+# README users see first. Changelogs and contributor docs may explain the
+# rename more than once.
+NAMING_SCOPE_PREFIXES = (f"{PLUGIN_REL}/", ROOT_README_REL)
 SKILL_DIR_REF = re.compile(r"\$\{CLAUDE_SKILL_DIR\}/([^\s`'\"<>)\]]+)")
 
 DENYLIST = (

@@ -40,7 +40,7 @@ The marketplace, the plugin, the plugin directory and the marketplace entry are 
 1. Create `plugins/cortex-xcor-rum/skills/<name>/SKILL.md`. Use a lowercase, hyphenated `<name>`, and set the frontmatter `name` to the same string. A mismatch fails the check.
 2. Write a `description` that says when to use the skill, with the phrases a user would type. Claude matches on it to load the skill on its own. Keep it under 1,536 characters, and quote it if it contains `: `, which YAML can't parse in a plain scalar.
 3. Put sibling files (knowledge base, templates) in the skill's directory and refer to them as `${CLAUDE_SKILL_DIR}/<file>`. The variable expands to the installed skill directory. The check fails on a reference that doesn't resolve.
-4. Include the hard rules below in the skill. The check requires the secrets rule by its first words, "Never reproduce secrets".
+4. Include the hard rules below in the skill. The check requires the secrets rule: a list item that says to redact secrets.
 5. Add the skill to the table in `README.md` and to the skill list in `plugins/cortex-xcor-rum/README.md`. Add keywords to `plugin.json` if the skill covers a new area.
 6. Bump the version and add a CHANGELOG entry (see Versioning), then run the check.
 
@@ -128,13 +128,13 @@ The check needs only Python 3.10 or later. `black` is a development tool, pinned
 | `layout` | One plugin. The marketplace name, the entry name, the `plugin.json` name and the plugin directory all equal `cortex-xcor-rum`. The version is semver. |
 | `skills` | Each skill directory has a `SKILL.md` with parseable frontmatter, `name` equal to the directory, and a non-empty `description` of at most 1,536 characters. |
 | `skill-refs` | Every `${CLAUDE_SKILL_DIR}/<file>` reference points to a file in that skill's directory. |
-| `secrets-rule` | Every `SKILL.md` contains "Never reproduce secrets". |
+| `secrets-rule` | Every `SKILL.md` has a list item that says to redact secrets, such as "Never reproduce secrets". |
 | `mcp` | Every server uses `http`, `sse` or `ws` with an `https://` or `wss://` URL, has no header that reads an environment variable or holds a literal credential, and pins any launcher version. |
 | `credentials` | No file reads an environment variable into an Authorization header or a URL credential parameter, and none holds a literal key, token or private key. |
-| `naming` | The "formerly" qualifier appears at most once per file. |
+| `naming` | The "formerly" qualifier appears at most once per file in the plugin folder and the root README. |
 | `denylist` | Internal terms (`#tech-support`, `#guild-`, `we'll flip`, `we're tracking`, `professional services`) don't appear under `plugins/`. |
 | `files` | Directory limits for size, count, file types, junk files, symlinks and LFS, and a plugin README of 40 or more words. |
-| `docs` | Every skill is in both READMEs, and `CHANGELOG.md` has an entry for the current version. |
+| `docs` | Every skill is in the root README table (a skill missing from the plugin README only warns), and `CHANGELOG.md` has an entry for the current version. |
 | `version` | Plugin files changed without a version bump (enforced after the first release tag). |
 
 `scripts/check-plugin-baseline.txt` lists findings that existed when the check was added, one `<check-id> <path>` per line. A baselined finding prints as a warning. Don't add a line to hide a new problem. Delete a line when you fix its finding, and the check warns about lines that no longer match.

@@ -9,6 +9,7 @@ from ..config import (
     CONTENT_CHECK_SKIP_PREFIXES,
     CREDENTIAL_PATTERNS,
     DENYLIST,
+    NAMING_SCOPE_PREFIXES,
     PLUGIN_REL,
 )
 from ..report import Issue
@@ -36,8 +37,10 @@ def check_credentials(repo: Repo) -> Iterator[Issue]:
 
 
 def check_naming(repo: Repo) -> Iterator[Issue]:
-    """The 'formerly Embrace' qualifier appears at most once per file."""
+    """Shipped files and the root README say 'formerly Embrace' at most once."""
     for rel, text in _text_files(repo):
+        if not rel.startswith(NAMING_SCOPE_PREFIXES):
+            continue
         count = len(_FORMERLY_EMBRACE.findall(text))
         if count > 1:
             yield Issue(

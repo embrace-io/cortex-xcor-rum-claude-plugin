@@ -1,18 +1,5 @@
-# Findings that predate the standards check in scripts/check_plugin/, one "<check-id> <path>" per line.
-# A baselined finding is a warning, not a failure. Delete a line when its
-# finding is fixed; the script warns about lines that no longer match.
-
-# The doctor skills on main don't have the secrets rule or their knowledge
-# base files yet. The knowledge-base pull request adds both.
-secrets-rule plugins/cortex-xcor-rum/skills/doctor-android/SKILL.md
-secrets-rule plugins/cortex-xcor-rum/skills/doctor-ios/SKILL.md
-skill-refs plugins/cortex-xcor-rum/skills/doctor-android/SKILL.md
-skill-refs plugins/cortex-xcor-rum/skills/doctor-ios/SKILL.md
-
-# doctor-ios on main says "we're tracking this". The knowledge-base pull
-# request removes it.
-denylist plugins/cortex-xcor-rum/skills/doctor-ios/SKILL.md
-
-# The README's CI example reads EMBRACE_API_TOKEN from the environment into an
-# Authorization header. Replace it with a userConfig-based setup or drop it.
-credentials README.md
+# Findings that predate the standards check in scripts/check_plugin/, one
+# "<check-id> <path>" per line. A baselined finding is a warning, not a
+# failure. Delete a line when its finding is fixed; the script warns about
+# lines that no longer match. Add a line only for an existing finding you
+# can't fix in the same pull request, and say why in a comment above it.

@@ -147,7 +147,7 @@ MUTATIONS = (
     Mutation(
         "naming_formerly_twice",
         "naming",
-        _write("notes.txt", "Cortex (formerly Embrace). Again, formerly Embrace.\n"),
+        _skill_append("\nCortex (formerly Embrace). Again, formerly Embrace.\n"),
     ),
     Mutation(
         "denylist_internal_channel",
@@ -253,6 +253,27 @@ class GoodTreeTests(unittest.TestCase):
         self.tree.write("CONTRIBUTING.md", "docs\n")
         self.tree.commit_changes()
         self.assertEqual(_run(self.tree, "base").findings, [])
+
+    def test_formerly_embrace_twice_outside_shipped_files_passes(self) -> None:
+        self.tree.write(
+            "CHANGELOG.md", "## [1.0.0]\nformerly Embrace. formerly Embrace.\n"
+        )
+        self.assertEqual(_run(self.tree).findings, [])
+
+    def test_reworded_secrets_rule_passes(self) -> None:
+        self.tree.edit(
+            SKILL,
+            lambda s: s.replace(
+                "Never reproduce secrets", "Keep secrets out of answers"
+            ),
+        )
+        self.assertEqual(_run(self.tree).findings, [])
+
+    def test_skill_missing_from_plugin_readme_only_warns(self) -> None:
+        self.tree.edit(PLUGIN_README, lambda s: s.replace(f"/{PLUGIN}:demo", "demo"))
+        report = _run(self.tree)
+        self.assertEqual(report.fails, [])
+        self.assertEqual([w.check for w in report.warns], ["docs"])
 
     def test_missing_manifest_is_one_layout_failure(self) -> None:
         (self.tree.root / MANIFEST).unlink()
