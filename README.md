@@ -42,7 +42,7 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 
 | Skill | What it covers |
 | :- | :- |
-| `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, React Native, Flutter, Unity and Web, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
+| `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
 | `/cortex-xcor-rum:doctor-android` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
