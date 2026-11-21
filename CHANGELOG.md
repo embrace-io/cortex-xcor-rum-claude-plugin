@@ -9,6 +9,7 @@ First release of the consolidated plugin.
 ### Added
 
 - One `cortex-xcor-rum` plugin with the `doctor-ios` and `doctor-android` skills, invoked as `/cortex-xcor-rum:doctor-ios` and `/cortex-xcor-rum:doctor-android`.
+- The `migrate-ios-6-to-7` skill, invoked as `/cortex-xcor-rum:migrate-ios-6-to-7`, migrates an Apple platform app from SDK 6.x to 7.x with a verified API mapping (`API_MAPPING.md`) and a build to verify. It covers 7.0 and 7.1.
 - The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, OAuth) in `.mcp.json`.
 - A listing icon at `.claude-plugin/icon.png`: the Cortex XCOR mark on a dark 1024 px square.
 - `privacyPolicyUrl` in `plugin.json`.

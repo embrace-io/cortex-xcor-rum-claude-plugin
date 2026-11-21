@@ -44,8 +44,11 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 | :- | :- |
 | `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
 | `/cortex-xcor-rum:doctor-android` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
+| `/cortex-xcor-rum:migrate-ios-6-to-7` | Migrates an Apple platform app from the XCOR RUM Apple SDK 6.x to 7.x. It rewrites every 6.x call site, removes the dropped crash products, asks before changing anything that has no 7.x replacement, builds the project, and lists the behavior changes that compile cleanly, such as the new session model. |
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
+
+The migration skill edits your code and runs your build (`xcodebuild`, `swift build`, or `pod install` for CocoaPods), so start it on a clean working tree. It escalates instead of guessing when it finds Objective-C calls to the SDK, a custom `CrashReporter`, an `appGroupId`, or a call it has no mapping for.
 
 ## Example prompts
 
@@ -54,6 +57,7 @@ Call a skill by name and describe the problem:
 ```text
 /cortex-xcor-rum:doctor-ios crashes aren't symbolicated since we moved to Xcode Cloud
 /cortex-xcor-rum:doctor-android NDK crashes stopped after upgrading to 7.x
+/cortex-xcor-rum:migrate-ios-6-to-7
 ```
 
 Or describe the problem in plain language and let Claude pick the skill:
@@ -62,6 +66,7 @@ Or describe the problem in plain language and let Claude pick the skill:
 Crashes stopped showing up in the XCOR RUM dashboard for our iOS app.
 Mapping file upload fails on CI after our AGP 8 upgrade.
 Our React Native app has sessions on iOS but none on Android.
+Upgrade this app from the Embrace iOS SDK 6 to 7.
 ```
 
 ## Troubleshooting
@@ -70,7 +75,7 @@ Our React Native app has sessions on iOS but none on Android.
 
 **The MCP server can't see your app.** The server returns the apps your XCOR RUM user can access, so confirm that you signed in with an account that has access to the app and that you gave the skill the right App ID. With a bearer token, check that the service account has access to the app and that the token has the `mcp:tools:call` scope plus `mcp:read` and/or `mcp:write`.
 
-**A skill says the knowledge base is missing.** Each doctor skill reads `MCP_SKILL_QA_INDEX.yaml` from its own folder in the installed plugin. If that file can't be read, the skill stops instead of guessing. Update or reinstall the plugin to restore it.
+**A skill says the knowledge base is missing.** Each doctor skill reads `MCP_SKILL_QA_INDEX.yaml` from its own folder in the installed plugin, and the migration skill reads `API_MAPPING.md` the same way. If that file can't be read, the skill stops instead of guessing. Update or reinstall the plugin to restore it.
 
 **You don't see a new release.** Claude Code doesn't update plugins from this marketplace automatically unless you turn on auto-update for it in `/plugin` under Marketplaces. Follow the update steps below.
 
@@ -96,7 +101,7 @@ claude plugin marketplace remove cortex-xcor-rum
 
 ## Privacy
 
-The plugin sends no data on its own. After you sign in to the MCP server, Claude Code requests your app's data from XCOR RUM when a skill or prompt calls the server's tools, and passes the results to Claude. See the [privacy policy](https://embrace.io/docs/privacy-policy) for how XCOR RUM handles data.
+The plugin sends no data on its own. The migration skill runs your project's build, which can download the SDK package from GitHub or CocoaPods. After you sign in to the MCP server, Claude Code requests your app's data from XCOR RUM when a skill or prompt calls the server's tools, and passes the results to Claude. See the [privacy policy](https://embrace.io/docs/privacy-policy) for how XCOR RUM handles data.
 
 ## Contributing
 
