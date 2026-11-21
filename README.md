@@ -44,7 +44,7 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 | :- | :- |
 | `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
 | `/cortex-xcor-rum:doctor-android` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
-| `/cortex-xcor-rum:migrate-ios-6-to-7` | Migrates an Apple platform app from the XCOR RUM Apple SDK 6.x to 7.x. It rewrites every 6.x call site, removes the dropped crash products, asks before changing anything that has no 7.x replacement, builds the project, and lists the behavior changes that compile cleanly, such as the new session model. |
+| `/cortex-xcor-rum:apple-migrate-6-to-7` | Migrates an Apple platform app from the XCOR RUM Apple SDK 6.x to 7.x. It rewrites every 6.x call site, removes the dropped crash products, asks before changing anything that has no 7.x replacement, builds the project, and lists the behavior changes that compile cleanly, such as the new session model. |
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
 
@@ -57,7 +57,7 @@ Call a skill by name and describe the problem:
 ```text
 /cortex-xcor-rum:doctor-ios crashes aren't symbolicated since we moved to Xcode Cloud
 /cortex-xcor-rum:doctor-android NDK crashes stopped after upgrading to 7.x
-/cortex-xcor-rum:migrate-ios-6-to-7
+/cortex-xcor-rum:apple-migrate-6-to-7
 ```
 
 Or describe the problem in plain language and let Claude pick the skill:
@@ -66,7 +66,7 @@ Or describe the problem in plain language and let Claude pick the skill:
 Crashes stopped showing up in the XCOR RUM dashboard for our iOS app.
 Mapping file upload fails on CI after our AGP 8 upgrade.
 Our React Native app has sessions on iOS but none on Android.
-Upgrade this app from the Embrace iOS SDK 6 to 7.
+Upgrade this app from the Embrace Apple SDK 6 to 7.
 ```
 
 ## Troubleshooting

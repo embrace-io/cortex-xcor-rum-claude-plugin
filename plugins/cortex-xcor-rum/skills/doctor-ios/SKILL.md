@@ -1,6 +1,6 @@
 ---
 name: doctor-ios
-description: Use when the user describes a Cortex XCOR RUM (formerly Embrace) SDK integration issue on iOS, including the iOS side of React Native, Flutter and Unity apps, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading the XCOR RUM SDK," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their XCOR RUM backend data (via the XCOR RUM MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for XCOR RUM tech support. Upgrading from SDK 6.x to 7.x, and build errors caused by that upgrade, are covered by `/cortex-xcor-rum:migrate-ios-6-to-7`. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
+description: Use when the user describes a Cortex XCOR RUM (formerly Embrace) SDK integration issue on iOS, including the iOS side of React Native, Flutter and Unity apps, for example "crashes aren't symbolicated," "crashes stopped showing up in the dashboard," "network calls not captured," "build fails after upgrading the XCOR RUM SDK," "SwiftUI views not tracked," "FCM push crash," or "dSYM upload failing." Inspects the user's codebase and their XCOR RUM backend data (via the XCOR RUM MCP server) against a catalog of recurring tech-support patterns, then returns a diagnosis, a fix, or an escalation package for XCOR RUM tech support. Upgrading from SDK 6.x to 7.x, and build errors caused by that upgrade, are covered by `/cortex-xcor-rum:apple-migrate-6-to-7`. Android-specific issues are out of scope and are covered by `/cortex-xcor-rum:doctor-android`.
 disallowed-tools: Bash, Edit, Write, NotebookEdit, WebFetch, Agent
 allowed-tools: Read(//**/skills/doctor-ios/MCP_SKILL_QA_INDEX.yaml)
 ---
@@ -80,7 +80,7 @@ Wherever the index says to contact XCOR RUM support, give the user these same de
 - Modify the user's code. Diagnose only — the user applies fixes themselves.
 - Query other observability services (Datadog, Firebase, Grafana). If those are needed, flag that to the user.
 - Replace the XCOR RUM tech-support team for novel issues. It's a first-pass filter for recurring patterns only.
-- Migrate an app from SDK 6.x to 7.x. If the user is upgrading, or the build broke after a 6.x to 7.x bump, tell them to run `/cortex-xcor-rum:migrate-ios-6-to-7`.
+- Migrate an app from SDK 6.x to 7.x. If the user is upgrading, or the build broke after a 6.x to 7.x bump, tell them to run `/cortex-xcor-rum:apple-migrate-6-to-7`.
 
 ## Requirements
 
