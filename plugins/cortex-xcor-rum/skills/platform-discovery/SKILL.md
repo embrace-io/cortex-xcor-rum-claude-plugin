@@ -1,6 +1,6 @@
 ---
 name: platform-discovery
-description: Use when the user asks for help with a Cortex XCOR RUM (formerly Embrace) SDK problem or task without saying which platform their app runs on, for example "crashes stopped showing up in the dashboard," "sessions are missing since our last release," "my XCOR RUM integration isn't working," or "which XCOR RUM SDK does this project use?" Detects the app's platform (Android, Apple, React Native, Flutter, Unity or web) from the user's codebase and, when an App ID is known, from their XCOR RUM app data. Asks the user only when that evidence doesn't settle it, then hands off to the plugin's skill for that platform. Not needed when the user names the platform or calls a platform skill such as `/cortex-xcor-rum:apple-doctor` directly.
+description: Use when the user asks for help with a Cortex XCOR RUM (formerly Embrace) SDK problem or task without saying which platform their app runs on, for example "data stopped arriving in XCOR RUM after our release," "sessions are missing since our last release," "my XCOR RUM integration isn't working," or "which XCOR RUM SDK does this project use?" Detects the app's platform (Android, Apple, React Native, Flutter, Unity or web) from the user's codebase and, when an App ID is known, from their XCOR RUM app data. Asks the user only when that evidence doesn't settle it, then hands off to the plugin's skill for that platform, or says so when the plugin has none yet. Not needed when the user names the platform or calls a platform skill such as `/cortex-xcor-rum:apple-doctor` directly.
 disallowed-tools: Bash, Edit, Write, NotebookEdit, WebFetch, Agent
 ---
 
@@ -19,7 +19,7 @@ Decide two things:
 
 ## Procedure
 
-1. **Use what the user already said.** If the user or the conversation names the platform ("our iOS app", "React Native", "AGP 8", "dSYM"), use it and skip the repo search for the platform. Still read the side from their words (step 5).
+1. **Use what the user already said.** "React Native", "Flutter", "Unity" and "web" (or a browser, a website, a web app) name the platform: use it and skip the repo search for the platform. Operating system and toolchain words, such as "iOS", "Android", "AGP 8" or "dSYM", don't settle the platform, because a React Native, Flutter or Unity app has them too. They settle the side (step 5), and the repo search still runs to tell a native app from a cross-platform one.
 
 2. **Find the project files.** Use `Glob` from the working directory for these files, at the root and up to three directories down:
    - `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradle/libs.versions.toml`, `AndroidManifest.xml`
@@ -28,7 +28,11 @@ Decide two things:
    - `pubspec.yaml`
    - `Packages/manifest.json`, `ProjectSettings/ProjectVersion.txt`
 
-   Ignore results under `node_modules/`, `Pods/`, `build/`, `.build/`, `DerivedData/`, `.dart_tool/` and `vendor/`, which hold dependencies and build output, not the user's project. If the working directory has none of these files, the user may have opened a subdirectory of their app. First `Grep` the source in the working directory for SDK imports: `@embrace-io/` or `@embraceio/` (JavaScript and TypeScript), `import EmbraceIO` (Swift), `io.embrace` (Kotlin and Java), `package:embrace` (Dart) and `EmbraceSDK` (C#). The import names the platform as in step 3. If that finds nothing, `Glob` the parent directories, one level at a time and up to three levels, and stop at the first that has the files above.
+   Also `Glob` `**/src/main/embrace-config.json` at any depth, since a React Native app keeps it in `android/app/src/main/`. Ignore results under `node_modules/`, `Pods/`, `build/`, `.build/`, `DerivedData/`, `.dart_tool/` and `vendor/`, which hold dependencies and build output, not the user's project.
+
+   **Check whether you're inside a larger app.** If the working directory is named `android` or `ios`, its parent may be a React Native, Flutter or Unity app. Look for `package.json`, `pubspec.yaml` or `Packages/manifest.json` in the parent directory before you treat the project as a native app.
+
+   If the working directory has none of these files, the user may have opened a subdirectory of their app. First `Grep` the source in the working directory for SDK imports: `@embrace-io/` or `@embraceio/` (JavaScript and TypeScript), `import EmbraceIO` (Swift), `io.embrace` (Kotlin and Java), `package:embrace` (Dart) and `EmbraceSDK` (C#). The import names the platform as in step 3. If that finds nothing, `Glob` the parent directories, one level at a time and up to three levels, and stop at the first that has the files above.
 
 3. **Look for the XCOR RUM SDK (strong signals).** Use `Grep` on the files from step 2. One match settles the platform for that project:
 
@@ -43,31 +47,34 @@ Decide two things:
 
    **The cross-platform SDKs come first.** A React Native, Flutter or Unity app also has `io.embrace` in its `android/` Gradle files and `EmbraceIO` in its `ios/` files, because those SDKs install the native SDKs underneath. When the cross-platform signal is present, the native matches inside its `android/` and `ios/` folders are part of the same app, not separate apps.
 
-4. **If no SDK signal matched, use the project structure (weak signals).** The user may not have installed the SDK yet, or may send OpenTelemetry data without it:
-   - React Native: a `react-native` or `expo` dependency in `package.json`. An Expo app may have no `android/` or `ios/` folder.
-   - Flutter: `pubspec.yaml` with `sdk: flutter`.
-   - Unity: `ProjectSettings/ProjectVersion.txt` or `Packages/manifest.json` with `com.unity.` packages.
-   - Web: `package.json` with no `react-native` or `expo` dependency, plus a web entry point (`index.html`, a `vite`, `next`, `webpack` or `react-scripts` dependency). React when it depends on `react`.
-   - Android: a Gradle project with the `com.android.application` plugin.
-   - Apple: an `.xcodeproj`, `Package.swift` or `Podfile` with no `package.json` or `pubspec.yaml` beside it.
+4. **If no SDK signal matched, use the project structure (weak signals).** The user may not have installed the SDK yet, or may send OpenTelemetry data without it. Check these in order and stop at the first that matches, so a cross-platform project is never read as the native app inside it:
+   1. React Native: a `react-native` or `expo` dependency in `package.json`. An Expo app may have no `android/` or `ios/` folder.
+   2. Flutter: `pubspec.yaml` with `sdk: flutter`.
+   3. Unity: `ProjectSettings/ProjectVersion.txt` or `Packages/manifest.json` with `com.unity.` packages.
+   4. Web: `package.json` with no `react-native` or `expo` dependency, plus a web entry point (`index.html`, a `vite`, `next`, `webpack` or `react-scripts` dependency). React when it depends on `react`.
+   5. Android: a Gradle project with the `com.android.application` plugin.
+   6. Apple: an `.xcodeproj`, `Package.swift` or `Podfile`.
 
-   Say that no XCOR RUM SDK was found, since that may be the user's problem.
+   The `android/` and `ios/` folders of a React Native, Flutter or Unity project belong to that project, so the last two apply only to a project that isn't one of those. Say that no XCOR RUM SDK was found, since that may be the user's problem.
 
 5. **Decide the side**, for React Native, Flutter and Unity only. Use the first of these that gives an answer:
    - The user's words. Android: Android, Gradle, AGP, NDK, ProGuard, R8, mapping file, ANR, Kotlin, Play Store, APK, AAB. Apple: iOS, iPhone, iPad, tvOS, watchOS, Xcode, dSYM, Swift, Objective-C, CocoaPods, SPM, TestFlight, App Store. A problem that names both ("sessions on iOS but none on Android") is on the side that's failing.
-   - The App ID. If the user gave an App ID, call the XCOR RUM MCP tool `list_apps` and find the app with that `app_id`. Its `platform` is the side and its `framework` confirms the platform. Call it once, and continue without it if no XCOR RUM tool responds.
-   - Otherwise, ask (step 7).
+   - The App ID (step 6).
+   - Otherwise, ask (step 8).
 
-6. **Check for more than one app.** If step 2 found separate projects for different platforms, such as `apps/ios/` and `apps/web/`, and the user's words don't pick one, ask which app the problem is in. A project whose only signals are inside a React Native, Flutter or Unity app's `android/` and `ios/` folders is one app, not two. When only one of the projects has a strong signal (step 3), that project is the app with XCOR RUM, so use it without asking. Ignore a project with no signal of any kind, such as a backend service.
+6. **Use the App ID for anything still open.** If the user gave an App ID and the platform, the side or the app is still open, call the XCOR RUM MCP tool `list_apps` with `limit` 1000 and find the app with that `app_id`, following `next_cursor` if it isn't on the first page. Its `platform` (`ios`, `android` or `web`) is the side, or the platform of a native or web app, and its `framework` (`native`, `react_native`, `flutter` or `unity`) is the platform of a cross-platform app. If no XCOR RUM tool responds, or the App ID isn't in the list, continue without it.
 
-7. **Report, and ask when needed.** Start the reply with one line in this form, so the user can correct it. Write it before anything else, even when the hand-off in step 8 fails:
+7. **Check for more than one app.** If step 2 found separate projects for different platforms, such as `apps/ios/` and `apps/web/`, and the user's words don't pick one, ask which app the problem is in. A project whose only signals are inside a React Native, Flutter or Unity app's `android/` and `ios/` folders is one app, not two. When only one of the projects has a strong signal (step 3), that project is the app with XCOR RUM, so use it without asking. Ignore a project with no signal of any kind, such as a backend service.
+
+8. **Report, and ask when needed.** Start the reply with one line in this form, so the user can correct it. Write it before anything else, even when the hand-off in step 9 fails:
 
    `**Platform:** <Android | Apple | React Native | Flutter | Unity | Web>[ (React)][, <Android | Apple> side][, no XCOR RUM SDK found] (<the file and line, or the user's words, that decided it>)`
 
-   When the side or the app isn't settled, write `side not known` or `app not known` in place of the side, and ask one short question with the choices, for example "This is a React Native app. Is the problem on Android, iOS, or both?" When nothing identifies the platform, write `**Platform:** not detected` and ask which platform the app is on. Never guess a platform or a side to avoid asking.
+   When the side or the app isn't settled, write `side not known` or `app not known` in place of the side, and ask one short question with the choices, for example "This is a React Native app. Is the problem on Android, iOS, or both?" When both the app and its side are open, ask both in that one question. When nothing identifies the platform, write `**Platform:** not detected` and ask which platform the app is on. Never guess a platform or a side to avoid asking.
 
-8. **Hand off.** Pick the skill for the platform from the `cortex-xcor-rum` skills listed as available in this session, whose names start with the platform: `android-`, `apple-`, `react-native-`, `flutter-`, `unity-` or `web-`. Read each candidate's description and choose the one that fits the user's task. Don't search the filesystem for skills: the session's skill list is the set you can load.
+9. **Hand off.** Pick the skill for the platform from the `cortex-xcor-rum` skills listed as available in this session, whose names start with the platform: `android-`, `apple-`, `react-native-`, `flutter-`, `unity-` or `web-`. Read each candidate's description and choose the one that fits the user's task. Don't search the filesystem for skills: the session's skill list is the set you can load.
    - For React Native, Flutter and Unity, prefer a skill with that platform's own prefix. If there is none, use the side's skill (`android-` or `apple-`) when its description says it covers that platform's side.
+   - When the user says the problem is on both sides and no skill has the platform's own prefix, start with one side's skill and tell the user you'll check the other side's next.
    - Load the chosen skill with the user's original request and the platform you found, and let it take over.
    - If no skill covers the platform and the task, say so plainly, and point the user to their XCOR RUM tech-support Slack channel if they have one, otherwise the [XCOR RUM community Slack](https://community.embrace.io) or [xcorsupport@paloaltonetworks.com](mailto:xcorsupport@paloaltonetworks.com). Don't answer the SDK question from general knowledge.
 

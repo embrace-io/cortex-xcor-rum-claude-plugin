@@ -80,6 +80,13 @@ class ParseReportTests(unittest.TestCase):
             run.parse_report("**Platform:** app not known (two apps)")["app"], "ask"
         )
 
+    def test_evidence_does_not_change_the_side(self):
+        report = run.parse_report(
+            "**Platform:** React Native, Apple side "
+            '(you said "iPhone", and nothing about the Android side)'
+        )
+        self.assertEqual(report["side"], "apple")
+
     def test_no_report(self):
         self.assertIsNone(run.parse_report("Which platform is your app on?"))
 
@@ -124,6 +131,9 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual(
             verdict(expect, "**Platform:** app not known (two apps)"), "right"
         )
+
+    def test_asking_the_platform_in_a_multi_app_repo_is_asked(self):
+        self.assertEqual(verdict({"app": "ask"}, "**Platform:** not detected"), "asked")
 
     def test_missing_report(self):
         self.assertEqual(verdict({"platform": "web"}, "no line here"), "no-report")

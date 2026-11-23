@@ -44,7 +44,7 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 | :- | :- |
 | `/cortex-xcor-rum:apple-doctor` | Troubleshoots XCOR RUM SDK integration issues on Apple platforms (iOS, tvOS and watchOS), including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
 | `/cortex-xcor-rum:android-doctor` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
-| `/cortex-xcor-rum:platform-discovery` | Works out which XCOR RUM SDK platform your app uses (Android, Apple, React Native, Flutter, Unity or web) from your codebase, and from your app's data when you give an App ID, then hands your request to the skill for that platform. Claude uses it when you describe a problem without naming the platform. It asks you only when the evidence doesn't settle the platform, such as which side of a React Native app has the problem. |
+| `/cortex-xcor-rum:platform-discovery` | Works out which XCOR RUM SDK platform your app uses (Android, Apple, React Native, Flutter, Unity or web) from your codebase, and from your app's data when you give an App ID, then hands your request to the skill for that platform. Claude can load it on its own when you describe a problem without naming the platform. Where the plugin has no skill for your platform yet, it says so and points you to support. It asks you only when the evidence doesn't settle the platform, such as which side of a React Native app has the problem. |
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
 
@@ -63,10 +63,10 @@ Or describe the problem in plain language and let Claude pick the skill:
 Crashes stopped showing up in the XCOR RUM dashboard for our iOS app.
 Mapping file upload fails on CI after our AGP 8 upgrade.
 Our React Native app has sessions on iOS but none on Android.
-Crashes stopped showing up in the XCOR RUM dashboard after our last release.
+Data stopped arriving in XCOR RUM after our last release.
 ```
 
-The last prompt names no platform, so Claude loads `platform-discovery`, which reads your project to find the platform before it hands off.
+The last prompt names no platform. Claude can then load `platform-discovery`, which reads your project to find the platform before it hands off, or call it yourself with `/cortex-xcor-rum:platform-discovery`.
 
 ## Troubleshooting
 

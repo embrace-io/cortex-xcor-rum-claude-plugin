@@ -128,8 +128,8 @@ def fetch_source(name, source, corpus_dir):
     with urllib.request.urlopen(url) as resp:
         extract_subdir(io.BufferedReader(resp), source.get("subdir", ""), tmp)
     strip_tree(tmp)
+    init_repo(tmp)
     tmp.rename(dest)
-    init_repo(dest)
     return f"fetched {name}"
 
 
@@ -175,7 +175,12 @@ def parse_report(text):
         return None
     line = match.group(1).strip()
     head = re.split(r"\s\(", line, maxsplit=1)[0].lower()
-    lower = line.lower()
+    # The claim ends where the evidence starts: the first parenthesis that quotes code
+    # or the user. Earlier ones qualify the platform, as in "Web (React)" or "React
+    # Native (Expo)". Only the claim is parsed, so evidence such as "you said nothing
+    # about the Android side" can't change the answer.
+    claim = re.split(r"\s\((?=[^)]*(?:`|\byou))", line, maxsplit=1)[0]
+    lower = claim.lower()
     report = {"line": line, "platform": None, "side": None, "app": None}
     if "not detected" in head:
         report["platform"] = "ask"
@@ -196,10 +201,6 @@ def parse_report(text):
     # The skill is told to write "no XCOR RUM SDK found", but models reword it ("no
     # Gradle `io.embrace` entry found"), so any "no ... found" clause before the
     # evidence counts.
-    # The claim ends where the evidence starts: the first parenthesis that quotes code
-    # or the user. Earlier ones qualify the platform, as in "Web (React)" or "React
-    # Native (Expo)".
-    claim = re.split(r"\s\((?=[^)]*(?:`|\byou))", line, maxsplit=1)[0]
     report["sdk"] = not re.search(r"\bno\b.*\bfound\b", claim, re.I)
     return report
 
@@ -208,15 +209,25 @@ def rescore(corpus, results_path, model):
     """Score a results file again, after a change to the parser or the corpus."""
     expected = {case_id(c): c["expect"] for c in corpus["cases"]}
     results = json.loads(results_path.read_text(encoding="utf-8"))
+    kept = []
     for row in results:
-        report = parse_report(row["result"])
-        row["verdict"], row["notes"] = score(expected[row["case"]], report)
+        if row["case"] not in expected:
+            print(f"skipping {row['case']}: no longer in the corpus")
+            continue
+        if not row.get("error"):
+            report = parse_report(row["result"])
+            row["report"] = report["line"] if report else None
+            row["verdict"], row["notes"] = score(expected[row["case"]], report)
+        kept.append(row)
+    results = kept
     results_path.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
     print_summary(results, model)
 
 
 def score(expect, report):
     """Return (verdict, notes). The verdict is right, asked, wrong or no-report.
+
+    A session that failed (see `run_case`) is scored "error" by the caller, not here.
 
     Asking when the expected answer was definite is "asked", which costs the user a
     question but sends nobody to the wrong skill. Any definite answer that differs
@@ -227,8 +238,10 @@ def score(expect, report):
         return "no-report", []
     notes = []
     if expect.get("app") == "ask":
-        if report["app"] == "ask" or report["platform"] == "ask":
+        if report["app"] == "ask":
             return "right", notes
+        if report["platform"] == "ask":
+            return "asked", ["asked for the platform, not which app"]
         return "wrong", [f"expected to ask which app, got {report['line']!r}"]
     if report["app"] == "ask" or report["platform"] == "ask":
         return "asked", notes
@@ -282,7 +295,7 @@ def run_case(case, prompt, corpus_dir, model, config_dir, timeout):
             cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout
         )
     except subprocess.TimeoutExpired as err:
-        return {"result": "", "error": str(err)[:300], "tools": []}
+        return {"result": "", "error": f"timeout: {err}"[:300], "tools": []}
     tools, out = [], {}
     for line in proc.stdout.splitlines():
         try:
@@ -295,7 +308,13 @@ def run_case(case, prompt, corpus_dir, model, config_dir, timeout):
             for block in event.get("message", {}).get("content", []):
                 if block.get("type") == "tool_use":
                     tools.append({"tool": block["name"], "input": block.get("input")})
+    error = None
+    if proc.returncode != 0 or not out or out.get("is_error"):
+        error = (
+            f"exit {proc.returncode}: {(proc.stderr or out.get('result') or '')[-300:]}"
+        )
     return {
+        "error": error,
         "result": out.get("result", ""),
         "cost_usd": out.get("total_cost_usd"),
         "turns": out.get("num_turns"),
@@ -326,7 +345,10 @@ def run(corpus, corpus_dir, model, jobs, out_path, only, timeout):
             case = futures[future]
             outcome = future.result()
             report = parse_report(outcome["result"])
-            verdict, notes = score(case["expect"], report)
+            if outcome.get("error"):
+                verdict, notes = "error", [outcome["error"]]
+            else:
+                verdict, notes = score(case["expect"], report)
             row = {
                 "case": case_id(case),
                 "verdict": verdict,
@@ -348,7 +370,7 @@ def print_summary(results, model):
         counts[row["verdict"]] = counts.get(row["verdict"], 0) + 1
     cost = sum(r.get("cost_usd") or 0 for r in results)
     print(f"\nmodel {model}, {len(results)} cases, ${cost:.2f}")
-    for verdict in ("right", "asked", "wrong", "no-report"):
+    for verdict in ("right", "asked", "wrong", "no-report", "error"):
         print(f"  {verdict:9} {counts.get(verdict, 0)}")
     for row in results:
         if row["verdict"] != "right" or row["notes"]:
