@@ -17,7 +17,12 @@ from .docs import check_docs
 from .files import check_files
 from .layout import check_layout
 from .mcp import check_mcp
-from .skills import check_secrets_rule, check_skill_refs, check_skills
+from .skills import (
+    check_secrets_rule,
+    check_skill_names,
+    check_skill_refs,
+    check_skills,
+)
 from .version import check_version
 
 
@@ -31,6 +36,7 @@ class Check:
 CHECKS = (
     Check("layout", check_layout),
     Check("skills", check_skills),
+    Check("skill-names", check_skill_names),
     Check("skill-refs", check_skill_refs),
     Check("secrets-rule", check_secrets_rule),
     Check("mcp", check_mcp),

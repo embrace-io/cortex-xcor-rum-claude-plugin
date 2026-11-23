@@ -1,13 +1,16 @@
-"""skills, skill-refs and secrets-rule: what each SKILL.md must contain."""
+"""skills, skill-names, skill-refs and secrets-rule: the rules for each skill."""
 
 from __future__ import annotations
 
 from typing import Iterator
 
 from ..config import (
+    APPLE_OS_SEGMENTS,
     DESCRIPTION_CAP,
     SECRETS_RULE,
     SKILL_DIR_REF,
+    SKILL_NAME,
+    SKILL_PLATFORM_PREFIXES,
     SKILLS_REL,
 )
 from ..frontmatter import FrontmatterError, parse_frontmatter
@@ -48,6 +51,62 @@ def check_skills(repo: Repo) -> Iterator[Issue]:
                 f"description is {len(description)} characters, "
                 f"over the {DESCRIPTION_CAP} cap",
             )
+
+
+def check_skill_names(repo: Repo) -> Iterator[Issue]:
+    """A skill name is lowercase and hyphenated, and a platform skill's name
+    starts with `apple-` or `android-`.
+
+    The check compares hyphen-separated segments, so `ios` fails but a word
+    that only contains it, such as `scenarios`, passes. Skill names are
+    permanent once a version ships, so the check stops a new name from
+    breaking the pattern rather than leaving a rename for later.
+    """
+    for skill in repo.skills():
+        if not SKILL_NAME.fullmatch(skill.name):
+            yield Issue(
+                skill.rel,
+                "skill name must be lowercase letters and digits joined by "
+                "hyphens, such as 'apple-doctor'",
+            )
+            continue
+        segments = skill.name.split("-")
+        platforms = {_platform(s) for s in segments} - {None}
+        if len(platforms) > 1:
+            yield Issue(
+                skill.rel,
+                "skill name names both Apple and Android; a skill that covers "
+                "every platform takes no platform prefix",
+            )
+            continue
+        if not platforms:
+            continue
+        [platform] = platforms
+        apple_os = next((s for s in segments if s in APPLE_OS_SEGMENTS), None)
+        suggestion = _suggest(platform, segments)
+        if apple_os:
+            yield Issue(
+                skill.rel,
+                f"skill name has the Apple OS name {apple_os!r}; skills for the "
+                f"Apple SDK start with 'apple-', so name it {suggestion!r}",
+            )
+        elif segments[0] != platform:
+            yield Issue(
+                skill.rel,
+                f"skill name has the platform {platform!r} after the first "
+                f"segment; name it {suggestion!r}",
+            )
+
+
+def _platform(segment: str) -> str | None:
+    if segment == "apple" or segment in APPLE_OS_SEGMENTS:
+        return "apple"
+    return segment if segment in SKILL_PLATFORM_PREFIXES else None
+
+
+def _suggest(platform: str, segments: list[str]) -> str:
+    rest = [s for s in segments if _platform(s) is None]
+    return "-".join([platform, *rest])
 
 
 def check_skill_refs(repo: Repo) -> Iterator[Issue]:

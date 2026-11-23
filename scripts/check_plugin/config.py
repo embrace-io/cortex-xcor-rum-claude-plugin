@@ -54,6 +54,17 @@ SECRETS_RULE = re.compile(r"^\s*[-*].*\bsecrets?\b.*\bredact", re.I | re.M)
 # README users see first. Changelogs and contributor docs may explain the
 # rename more than once.
 NAMING_SCOPE_PREFIXES = (f"{PLUGIN_REL}/", ROOT_README_REL)
+# AGENTS.md requires lowercase, hyphenated skill names. Without this,
+# `iOS-doctor` or `doctor_ios` would slip past the platform segment match.
+SKILL_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# A skill that targets one platform starts its name with that platform, so the
+# platform's skills sort together in the `/cortex-xcor-rum:` command list.
+SKILL_PLATFORM_PREFIXES = ("apple", "android")
+# One Apple SDK covers iOS, tvOS and watchOS, so a skill name says `apple`
+# instead of naming one of its operating systems.
+APPLE_OS_SEGMENTS = frozenset(
+    {"ios", "ipados", "macos", "osx", "tvos", "visionos", "watchos"}
+)
 SKILL_DIR_REF = re.compile(r"\$\{CLAUDE_SKILL_DIR\}/([^\s`'\"<>)\]]+)")
 
 DENYLIST = (

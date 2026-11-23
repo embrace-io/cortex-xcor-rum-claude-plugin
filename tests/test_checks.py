@@ -29,6 +29,7 @@ from .fixtures import (
     build_good_tree,
     manifest,
     marketplace_entry,
+    rename_skill,
 )
 
 
@@ -50,6 +51,10 @@ def _skill(old: str, new: str) -> Callable[[Tree], None]:
 
 def _skill_append(extra: str) -> Callable[[Tree], None]:
     return lambda tree: tree.edit(SKILL, lambda text: text + extra)
+
+
+def _rename_skill(name: str) -> Callable[[Tree], None]:
+    return lambda tree: rename_skill(tree, name)
 
 
 def _mcp(servers: dict) -> Callable[[Tree], None]:
@@ -106,6 +111,21 @@ MUTATIONS = (
         "skills_unquoted_colon",
         "skills",
         _skill("about the demo.", "about this: the demo."),
+    ),
+    Mutation("skill_names_ios_suffix", "skill-names", _rename_skill("doctor-ios")),
+    Mutation("skill_names_ios_prefix", "skill-names", _rename_skill("ios-doctor")),
+    Mutation("skill_names_tvos", "skill-names", _rename_skill("tvos-doctor")),
+    Mutation(
+        "skill_names_platform_suffix",
+        "skill-names",
+        _rename_skill("doctor-android"),
+    ),
+    Mutation("skill_names_uppercase", "skill-names", _rename_skill("iOS-doctor")),
+    Mutation("skill_names_underscore", "skill-names", _rename_skill("doctor_ios")),
+    Mutation(
+        "skill_names_two_platforms",
+        "skill-names",
+        _rename_skill("android-apple-bridge"),
     ),
     Mutation("skill_refs_missing_file", "skill-refs", _skill("notes.md", "gone.md")),
     Mutation(
@@ -259,6 +279,35 @@ class GoodTreeTests(unittest.TestCase):
             "CHANGELOG.md", "## [1.0.0]\nformerly Embrace. formerly Embrace.\n"
         )
         self.assertEqual(_run(self.tree).findings, [])
+
+    def test_platform_prefixed_and_platform_free_skill_names_pass(self) -> None:
+        for name in ("apple-doctor", "android-doctor", "doctor", "scenarios"):
+            with self.subTest(name=name):
+                tmp = tempfile.TemporaryDirectory()
+                self.addCleanup(tmp.cleanup)
+                tree = build_good_tree(Path(tmp.name))
+                rename_skill(tree, name)
+                self.assertEqual(_run(tree).findings, [])
+
+    def test_skill_name_finding_suggests_the_prefixed_name(self) -> None:
+        rename_skill(self.tree, "doctor-ios")
+        [finding] = _run(self.tree).findings
+        self.assertIn("'apple-doctor'", finding.message)
+
+    def test_skill_name_with_apple_prefix_and_os_suggests_dropping_the_os(
+        self,
+    ) -> None:
+        rename_skill(self.tree, "apple-ios-bridge")
+        [finding] = _run(self.tree).findings
+        self.assertIn("'apple-bridge'", finding.message)
+
+    def test_skill_name_with_two_platforms_is_one_finding_without_a_name(
+        self,
+    ) -> None:
+        rename_skill(self.tree, "doctor-android-macos")
+        [finding] = _run(self.tree).findings
+        self.assertIn("both Apple and Android", finding.message)
+        self.assertNotIn("name it", finding.message)
 
     def test_reworded_secrets_rule_passes(self) -> None:
         self.tree.edit(
