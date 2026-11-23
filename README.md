@@ -76,7 +76,7 @@ Our React Native app has sessions on iOS but none on Android.
 
 ## Get help
 
-If a doctor skill escalates or you have a question it can't answer, send the escalation package to your XCOR RUM tech-support Slack channel if you have one. Otherwise, ask in the [XCOR RUM community Slack](https://community.embrace.io) or email [sg-observability-sales-engineering@paloaltonetworks.com](mailto:sg-observability-sales-engineering@paloaltonetworks.com).
+If a doctor skill escalates or you have a question it can't answer, send the escalation package to your XCOR RUM tech-support Slack channel if you have one. Otherwise, ask in the [XCOR RUM community Slack](https://community.embrace.io) or email [xcorsupport@paloaltonetworks.com](mailto:xcorsupport@paloaltonetworks.com).
 
 ## Update and uninstall
 

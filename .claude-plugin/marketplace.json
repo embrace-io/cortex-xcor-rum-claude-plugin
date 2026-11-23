@@ -4,7 +4,7 @@
   "description": "Claude Code plugins for working with Cortex XCOR RUM's mobile SDKs.",
   "owner": {
     "name": "Cortex XCOR RUM",
-    "email": "sg-observability-sales-engineering@paloaltonetworks.com"
+    "email": "xcorsupport@paloaltonetworks.com"
   },
   "plugins": [
     {
