@@ -17,7 +17,8 @@ README.md                                  install, sign-in and skill table for 
 CHANGELOG.md                               one entry per plugin version
 scripts/check_plugin/                      the standards check (standard library only)
 scripts/check-plugin-baseline.txt          known findings that predate the check
-tests/                                     unit tests for the check
+tests/                                     unit tests for the check and the eval scorer
+evals/platform-discovery/                  accuracy eval for the platform-discovery skill (not shipped)
 pyproject.toml                             black settings for the Python above
 .github/workflows/validate.yml             CI: claude plugin validate and the check script
 ```

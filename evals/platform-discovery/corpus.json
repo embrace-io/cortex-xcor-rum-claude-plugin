@@ -1,0 +1,63 @@
+{
+  "prompts": {
+    "generic": "Crashes stopped showing up in the XCOR RUM dashboard after our last release.",
+    "android": "Since our last release we see sessions from iOS in XCOR RUM but none from Android.",
+    "apple": "Crashes from our iPhone app aren't symbolicated in XCOR RUM since we moved to a new CI."
+  },
+  "sources": {
+    "ecommerce-android": {"repo": "embrace-io/embrace-ecommerce-android-demo", "ref": "85dc715c09756e50666fc8f85059097307275e63"},
+    "ecommerce-ios": {"repo": "embrace-io/embrace-ecommerce-ios-demo", "ref": "f5c22f01dacc5988748b727ee2ae1dc1b878af9b"},
+    "ecommerce-react-native": {"repo": "embrace-io/embrace-ecommerce-react-native-demo", "ref": "64984a5c8bfa01386d446dbf254185e1a249c5d8"},
+    "ecommerce-flutter": {"repo": "embrace-io/embrace-ecommerce-flutter-demo", "ref": "53d6984fd69a303a112b1bd8f70f1d823a91d669"},
+    "flutter-dartastic": {"repo": "embrace-io/embrace-flutter-dartastic-demo", "ref": "3465533cff0b3b48358020e063ab763e227d0ee9"},
+    "otel-demo-web": {"repo": "embrace-io/opentelemetry-demo-web-sdk", "ref": "839d426f2be18db12b8241cef0c4e6af818033f5"},
+    "react-otel-sample": {"repo": "embrace-io/react-otel-sample", "ref": "677025e3ed26f1a1e1ee9ed29a54d0215b3a2721"},
+    "webos": {"repo": "embrace-io/LGWebOSEmbrace", "ref": "89ffda94a14dbc77f668b9c890eb42fa70d61607"},
+    "sdk-android-example": {"repo": "embrace-io/embrace-android-sdk", "ref": "43bc9166f75a994e1115064b160c25c0736d604c", "subdir": "examples/ExampleApp"},
+    "sdk-apple-cocoapods": {"repo": "embrace-io/embrace-apple-sdk", "ref": "5fcf8a5583056f52a0edff1274ef05339b1809a7", "subdir": "Examples/BrandGame-CocoaPods"},
+    "sdk-apple-tvos": {"repo": "embrace-io/embrace-apple-sdk", "ref": "5fcf8a5583056f52a0edff1274ef05339b1809a7", "subdir": "Examples/Embrace-tvOS-TestApp"},
+    "sdk-web-demo": {"repo": "embrace-io/embrace-web-sdk", "ref": "28fecf6ca276cd9e174cc49abf872481af957b97", "subdir": "demo/frontend"},
+    "sdk-flutter-example": {"repo": "embrace-io/embrace-flutter-sdk", "ref": "9d247df9d49ffefc6b885557b76f73e08bd9dba7", "subdir": "embrace/example"},
+    "sdk-unity-example": {"repo": "embrace-io/embrace-unity-sdk", "ref": "50558dc32274c562e4e6243be5afc29e4bfff1f7", "subdir": "UnityProjects/6_LTS"},
+    "oss-swiftui": {"repo": "nalexn/clean-architecture-swiftui", "ref": "9eca97b8cfff96a14084b564b1fefd949c93d232"},
+    "oss-android": {"repo": "android/sunflower", "ref": "2a357a31551bb53f3fe80382a9ce6d30bcc8b960"},
+    "oss-expo": {"repo": "obytes/react-native-template-obytes", "ref": "fd9b358ed11913d2a49fd9ffa6582fe03ba130e7"},
+    "oss-react": {"repo": "gothinkster/react-redux-realworld-example-app", "ref": "ee72eba4056392c95a27bc48d385d3f54ba38a18"},
+    "oss-flutter": {"repo": "flutter-team-archive/gallery", "ref": "d12640d4b08ee6e706fd8c64a83fba0620c9aa8d"}
+  },
+  "synthetic": {
+    "multi-app": {"note": "An Apple app and a web app in one repository, both with the SDK", "copy": {"apps/ios": "sdk-apple-cocoapods", "apps/web": "sdk-web-demo"}},
+    "brownfield": {"note": "A native Android app with the SDK that embeds React Native screens without the React Native SDK", "copy": {".": "ecommerce-android"}, "files": {"package.json": "{\n  \"name\": \"shop-rn-screens\",\n  \"private\": true,\n  \"dependencies\": {\n    \"react\": \"18.3.1\",\n    \"react-native\": \"0.76.5\"\n  }\n}\n", "rn/index.js": "import { AppRegistry } from 'react-native';\nimport Checkout from './Checkout';\nAppRegistry.registerComponent('Checkout', () => Checkout);\n"}}
+  },
+  "cases": [
+    {"project": "ecommerce-android", "prompt": "generic", "expect": {"platform": "android", "sdk": true}},
+    {"project": "ecommerce-android", "cwd": "app", "prompt": "generic", "expect": {"platform": "android", "sdk": true}},
+    {"project": "ecommerce-ios", "prompt": "generic", "expect": {"platform": "apple", "sdk": true}},
+    {"project": "ecommerce-react-native", "prompt": "generic", "expect": {"platform": "react-native", "side": "ask", "sdk": true}},
+    {"project": "ecommerce-react-native", "prompt": "android", "expect": {"platform": "react-native", "side": "android", "sdk": true}},
+    {"project": "ecommerce-react-native", "prompt": "apple", "expect": {"platform": "react-native", "side": "apple", "sdk": true}},
+    {"project": "ecommerce-react-native", "cwd": "src", "prompt": "generic", "expect": {"platform": "react-native", "side": "ask", "sdk": true}},
+    {"project": "ecommerce-flutter", "prompt": "generic", "expect": {"platform": "flutter", "side": "ask", "sdk": true}},
+    {"project": "ecommerce-flutter", "prompt": "android", "expect": {"platform": "flutter", "side": "android", "sdk": true}},
+    {"project": "flutter-dartastic", "prompt": "generic", "expect": {"platform": "flutter", "side": "ask", "sdk": false}},
+    {"project": "otel-demo-web", "prompt": "generic", "expect": {"platform": "web", "react": true, "sdk": true}},
+    {"project": "react-otel-sample", "prompt": "generic", "expect": {"platform": "web", "react": true, "sdk": false}},
+    {"project": "webos", "prompt": "generic", "expect": {"platform": "web", "react": false, "sdk": true}},
+    {"project": "sdk-android-example", "prompt": "generic", "expect": {"platform": "android", "sdk": true}},
+    {"project": "sdk-apple-cocoapods", "prompt": "generic", "expect": {"platform": "apple", "sdk": true}},
+    {"project": "sdk-apple-tvos", "prompt": "generic", "expect": {"platform": "apple", "sdk": true}},
+    {"project": "sdk-web-demo", "prompt": "generic", "expect": {"platform": "web", "react": true, "sdk": true}},
+    {"project": "sdk-flutter-example", "prompt": "generic", "expect": {"platform": "flutter", "side": "ask", "sdk": true}},
+    {"project": "sdk-unity-example", "prompt": "generic", "expect": {"platform": "unity", "side": "ask", "sdk": true}},
+    {"project": "sdk-unity-example", "prompt": "android", "expect": {"platform": "unity", "side": "android", "sdk": true}},
+    {"project": "oss-swiftui", "prompt": "generic", "expect": {"platform": "apple", "sdk": false}},
+    {"project": "oss-android", "prompt": "generic", "expect": {"platform": "android", "sdk": false}},
+    {"project": "oss-expo", "prompt": "generic", "expect": {"platform": "react-native", "side": "ask", "sdk": false}},
+    {"project": "oss-expo", "prompt": "apple", "expect": {"platform": "react-native", "side": "apple", "sdk": false}},
+    {"project": "oss-react", "prompt": "generic", "expect": {"platform": "web", "react": true, "sdk": false}},
+    {"project": "oss-flutter", "prompt": "generic", "expect": {"platform": "flutter", "side": "ask", "sdk": false}},
+    {"project": "multi-app", "prompt": "generic", "expect": {"app": "ask", "sdk": true}},
+    {"project": "multi-app", "prompt": "apple", "expect": {"platform": "apple", "sdk": true}},
+    {"project": "brownfield", "prompt": "generic", "expect": {"platform": "android", "sdk": true}}
+  ]
+}
