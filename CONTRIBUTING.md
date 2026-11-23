@@ -10,7 +10,7 @@ Each skill is a directory under the plugin's `skills/` directory:
 plugins/cortex-xcor-rum/skills/<name>/SKILL.md
 ```
 
-1. Create `plugins/cortex-xcor-rum/skills/<name>/SKILL.md`. If the skill targets one platform, start `<name>` with `apple-` or `android-` (`apple-doctor`, not `doctor-ios`); [AGENTS.md](AGENTS.md) has the naming rules. Set `name` in its frontmatter to the directory name. The frontmatter `name` sets the last segment of the command, `/cortex-xcor-rum:<name>`.
+1. Create `plugins/cortex-xcor-rum/skills/<name>/SKILL.md`. If the skill targets one SDK, start `<name>` with its platform: `android-`, `apple-`, `flutter-`, `react-native-`, `unity-` or `web-` (`apple-doctor`, not `doctor-ios`); [AGENTS.md](AGENTS.md) has the naming rules. Set `name` in its frontmatter to the directory name. The frontmatter `name` sets the last segment of the command, `/cortex-xcor-rum:<name>`.
 2. Write a `description` that says when Claude should use the skill, since Claude reads it to decide whether to load the skill on its own.
 3. Put any sibling files the skill needs (knowledge bases, templates, scripts) in the same directory and reference them as `${CLAUDE_SKILL_DIR}/<file>`. The variable expands to the skill's directory wherever the plugin is installed.
 4. Add the skill to the table in the root `README.md`, with its command and what it covers, and to the skill list in `plugins/cortex-xcor-rum/README.md`.

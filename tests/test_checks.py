@@ -127,6 +127,23 @@ MUTATIONS = (
         "skill-names",
         _rename_skill("android-apple-bridge"),
     ),
+    Mutation(
+        "skill_names_framework_suffix",
+        "skill-names",
+        _rename_skill("doctor-flutter"),
+    ),
+    Mutation("skill_names_rn_alias", "skill-names", _rename_skill("rn-doctor")),
+    Mutation("skill_names_web_and_native", "skill-names", _rename_skill("web-android")),
+    Mutation(
+        "skill_names_native_side_not_after_prefix",
+        "skill-names",
+        _rename_skill("react-native-linking-android"),
+    ),
+    Mutation(
+        "skill_names_framework_with_two_native_sides",
+        "skill-names",
+        _rename_skill("unity-apple-android-build"),
+    ),
     Mutation("skill_refs_missing_file", "skill-refs", _skill("notes.md", "gone.md")),
     Mutation(
         "secrets_rule_missing",
@@ -281,7 +298,20 @@ class GoodTreeTests(unittest.TestCase):
         self.assertEqual(_run(self.tree).findings, [])
 
     def test_platform_prefixed_and_platform_free_skill_names_pass(self) -> None:
-        for name in ("apple-doctor", "android-doctor", "doctor", "scenarios"):
+        for name in (
+            "apple-doctor",
+            "android-doctor",
+            "flutter-doctor",
+            "react-native-doctor",
+            "unity-doctor",
+            "web-doctor",
+            "react-native-android-linking",
+            "flutter-apple-build",
+            "doctor",
+            "scenarios",
+            "native-crash",
+            "webview-crash",
+        ):
             with self.subTest(name=name):
                 tmp = tempfile.TemporaryDirectory()
                 self.addCleanup(tmp.cleanup)
@@ -301,13 +331,26 @@ class GoodTreeTests(unittest.TestCase):
         [finding] = _run(self.tree).findings
         self.assertIn("'apple-bridge'", finding.message)
 
-    def test_skill_name_with_two_platforms_is_one_finding_without_a_name(
-        self,
-    ) -> None:
-        rename_skill(self.tree, "doctor-android-macos")
+    def test_skill_name_with_two_native_platforms_has_no_suggestion(self) -> None:
+        rename_skill(self.tree, "android-apple-bridge")
         [finding] = _run(self.tree).findings
-        self.assertIn("both Apple and Android", finding.message)
-        self.assertNotIn("name it", finding.message)
+        self.assertIn("more than one platform", finding.message)
+        self.assertNotIn("as in", finding.message)
+
+    def test_framework_skill_name_suggestions_keep_the_native_side(self) -> None:
+        cases = {
+            "android-react-native-linking": "'react-native-android-linking'",
+            "react-native-ios-build": "'react-native-apple-build'",
+            "rn-doctor": "'react-native-doctor'",
+        }
+        for name, suggestion in cases.items():
+            with self.subTest(name=name):
+                tmp = tempfile.TemporaryDirectory()
+                self.addCleanup(tmp.cleanup)
+                tree = build_good_tree(Path(tmp.name))
+                rename_skill(tree, name)
+                [finding] = _run(tree).findings
+                self.assertIn(suggestion, finding.message)
 
     def test_reworded_secrets_rule_passes(self) -> None:
         self.tree.edit(

@@ -57,14 +57,26 @@ NAMING_SCOPE_PREFIXES = (f"{PLUGIN_REL}/", ROOT_README_REL)
 # AGENTS.md requires lowercase, hyphenated skill names. Without this,
 # `iOS-doctor` or `doctor_ios` would slip past the platform segment match.
 SKILL_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-# A skill that targets one platform starts its name with that platform, so the
-# platform's skills sort together in the `/cortex-xcor-rum:` command list.
-SKILL_PLATFORM_PREFIXES = ("apple", "android")
-# One Apple SDK covers iOS, tvOS and watchOS, so a skill name says `apple`
-# instead of naming one of its operating systems.
-APPLE_OS_SEGMENTS = frozenset(
-    {"ios", "ipados", "macos", "osx", "tvos", "visionos", "watchos"}
-)
+# A skill that targets one SDK starts its name with that SDK's platform, so the
+# platform's skills sort together in the `/cortex-xcor-rum:` command list. The
+# list matches the SDKs at https://embrace.io/docs/open-telemetry/sdk-repositories/.
+SKILL_PLATFORMS = ("android", "apple", "flutter", "react-native", "unity", "web")
+# Informal names for a platform. One Apple SDK covers iOS, tvOS and watchOS, so
+# a name with one Apple operating system in it is wrong for the others.
+PLATFORM_ALIASES = {
+    **{
+        os_name: "apple"
+        for os_name in ("ios", "ipados", "macos", "osx", "tvos", "visionos", "watchos")
+    },
+    "rn": "react-native",
+    "reactnative": "react-native",
+}
+# Cross-platform frameworks wrap the native SDKs, and their build problems are
+# often on one native side, so a framework skill may name that side after its
+# prefix, as in `react-native-android-linking`. No other second platform is
+# allowed: a skill for every platform takes no prefix.
+FRAMEWORK_PLATFORMS = ("flutter", "react-native", "unity")
+NATIVE_PLATFORMS = ("android", "apple")
 SKILL_DIR_REF = re.compile(r"\$\{CLAUDE_SKILL_DIR\}/([^\s`'\"<>)\]]+)")
 
 DENYLIST = (

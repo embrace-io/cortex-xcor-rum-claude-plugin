@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Iterator, NamedTuple
 
 from ..config import (
-    APPLE_OS_SEGMENTS,
     DESCRIPTION_CAP,
+    FRAMEWORK_PLATFORMS,
+    NATIVE_PLATFORMS,
+    PLATFORM_ALIASES,
     SECRETS_RULE,
     SKILL_DIR_REF,
     SKILL_NAME,
-    SKILL_PLATFORM_PREFIXES,
+    SKILL_PLATFORMS,
     SKILLS_REL,
 )
 from ..frontmatter import FrontmatterError, parse_frontmatter
@@ -54,8 +56,9 @@ def check_skills(repo: Repo) -> Iterator[Issue]:
 
 
 def check_skill_names(repo: Repo) -> Iterator[Issue]:
-    """A skill name is lowercase and hyphenated, and a platform skill's name
-    starts with `apple-` or `android-`.
+    """A skill name is lowercase and hyphenated, and an SDK skill's name starts
+    with its platform: `apple-`, `android-`, `flutter-`, `react-native-`,
+    `unity-` or `web-`.
 
     The check compares hyphen-separated segments, so `ios` fails but a word
     that only contains it, such as `scenarios`, passes. Skill names are
@@ -70,43 +73,83 @@ def check_skill_names(repo: Repo) -> Iterator[Issue]:
                 "hyphens, such as 'apple-doctor'",
             )
             continue
-        segments = skill.name.split("-")
-        platforms = {_platform(s) for s in segments} - {None}
-        if len(platforms) > 1:
-            yield Issue(
-                skill.rel,
-                "skill name names both Apple and Android; a skill that covers "
-                "every platform takes no platform prefix",
-            )
+        problem = _skill_name_problem(_tokens(skill.name.split("-")))
+        if problem:
+            yield Issue(skill.rel, problem)
+
+
+class _Token(NamedTuple):
+    text: str  # the segment, or `react-native` when two segments spell it
+    platform: str | None  # the canonical platform the token names, if any
+
+
+def _tokens(segments: list[str]) -> list[_Token]:
+    tokens: list[_Token] = []
+    i = 0
+    while i < len(segments):
+        if segments[i : i + 2] == ["react", "native"]:
+            tokens.append(_Token("react-native", "react-native"))
+            i += 2
             continue
-        if not platforms:
-            continue
-        [platform] = platforms
-        apple_os = next((s for s in segments if s in APPLE_OS_SEGMENTS), None)
-        suggestion = _suggest(platform, segments)
-        if apple_os:
-            yield Issue(
-                skill.rel,
-                f"skill name has the Apple OS name {apple_os!r}; skills for the "
-                f"Apple SDK start with 'apple-', so name it {suggestion!r}",
-            )
-        elif segments[0] != platform:
-            yield Issue(
-                skill.rel,
-                f"skill name has the platform {platform!r} after the first "
-                f"segment; name it {suggestion!r}",
-            )
+        segment = segments[i]
+        if segment in SKILL_PLATFORMS:
+            tokens.append(_Token(segment, segment))
+        else:
+            tokens.append(_Token(segment, PLATFORM_ALIASES.get(segment)))
+        i += 1
+    return tokens
 
 
-def _platform(segment: str) -> str | None:
-    if segment == "apple" or segment in APPLE_OS_SEGMENTS:
-        return "apple"
-    return segment if segment in SKILL_PLATFORM_PREFIXES else None
+def _skill_name_problem(tokens: list[_Token]) -> str | None:
+    named = [t for t in tokens if t.platform]
+    if not named:
+        return None
+    suggestion = _suggest(tokens)
+    hint = f", as in {suggestion!r}" if suggestion else ""
+    alias = next((t for t in named if t.text != t.platform), None)
+    if alias:
+        return (
+            f"skill name has the informal platform name {alias.text!r}; "
+            f"name the platform {alias.platform!r}{hint}"
+        )
+    platforms = list(dict.fromkeys(t.platform for t in named))
+    primary = platforms[0]
+    extra = platforms[1:]
+    allowed_extra = not extra or (
+        primary in FRAMEWORK_PLATFORMS
+        and len(extra) == 1
+        and extra[0] in NATIVE_PLATFORMS
+    )
+    if not allowed_extra:
+        return (
+            f"skill name names more than one platform ({', '.join(platforms)}); "
+            "a skill for every platform takes no prefix, and only a framework "
+            f"prefix ({', '.join(FRAMEWORK_PLATFORMS)}) may name a native side "
+            f"({', '.join(NATIVE_PLATFORMS)}) after it{hint}"
+        )
+    if len(named) != len(platforms):
+        return f"skill name names its platform more than once{hint}"
+    if tokens[0].platform != primary:
+        return f"skill name doesn't start with its platform{hint}"
+    if extra and tokens[1].platform != extra[0]:
+        return f"skill name puts the native side away from its prefix{hint}"
+    return None
 
 
-def _suggest(platform: str, segments: list[str]) -> str:
-    rest = [s for s in segments if _platform(s) is None]
-    return "-".join([platform, *rest])
+def _suggest(tokens: list[_Token]) -> str | None:
+    """Returns the name with its platform tokens moved to the front, or None
+    when the platforms can't form a valid prefix."""
+    platforms = set(t.platform for t in tokens if t.platform)
+    frameworks = [p for p in FRAMEWORK_PLATFORMS if p in platforms]
+    natives = [p for p in NATIVE_PLATFORMS if p in platforms]
+    if len(platforms) == 1:
+        prefix = list(platforms)
+    elif len(frameworks) == 1 and len(natives) == 1 and len(platforms) == 2:
+        prefix = frameworks + natives
+    else:
+        return None
+    rest = [t.text for t in tokens if not t.platform]
+    return "-".join(prefix + rest)
 
 
 def check_skill_refs(repo: Repo) -> Iterator[Issue]:
