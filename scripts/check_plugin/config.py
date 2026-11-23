@@ -54,6 +54,25 @@ SECRETS_RULE = re.compile(r"^\s*[-*].*\bsecrets?\b.*\bredact", re.I | re.M)
 # README users see first. Changelogs and contributor docs may explain the
 # rename more than once.
 NAMING_SCOPE_PREFIXES = (f"{PLUGIN_REL}/", ROOT_README_REL)
+# AGENTS.md requires lowercase, hyphenated skill names. Without this,
+# `iOS-doctor` or `doctor_ios` would slip past the platform segment match.
+SKILL_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# A skill for one SDK is named `<platform>-<skill>`, so each platform's skills
+# sort together in the `/cortex-xcor-rum:` command list. A name with no
+# platform in it is for a skill that works across platforms. The list matches
+# the SDKs at https://embrace.io/docs/open-telemetry/sdk-repositories/.
+SKILL_PLATFORMS = ("android", "apple", "flutter", "react-native", "unity", "web")
+# Informal names for a platform, which fail anywhere in a name. One Apple SDK
+# covers iOS, tvOS and watchOS, so a name with one Apple operating system in
+# it is wrong for the others.
+PLATFORM_ALIASES = {
+    **{
+        os_name: "apple"
+        for os_name in ("ios", "ipados", "macos", "osx", "tvos", "visionos", "watchos")
+    },
+    "rn": "react-native",
+    "reactnative": "react-native",
+}
 SKILL_DIR_REF = re.compile(r"\$\{CLAUDE_SKILL_DIR\}/([^\s`'\"<>)\]]+)")
 
 DENYLIST = (

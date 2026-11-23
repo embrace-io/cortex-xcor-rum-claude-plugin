@@ -42,8 +42,8 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 
 | Skill | What it covers |
 | :- | :- |
-| `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
-| `/cortex-xcor-rum:doctor-android` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
+| `/cortex-xcor-rum:apple-doctor` | Troubleshoots XCOR RUM SDK integration issues on Apple platforms (iOS, tvOS and watchOS), including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
+| `/cortex-xcor-rum:android-doctor` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
 
@@ -52,8 +52,8 @@ Both doctor skills match your problem against a catalog of recurring tech-suppor
 Call a skill by name and describe the problem:
 
 ```text
-/cortex-xcor-rum:doctor-ios crashes aren't symbolicated since we moved to Xcode Cloud
-/cortex-xcor-rum:doctor-android NDK crashes stopped after upgrading to 7.x
+/cortex-xcor-rum:apple-doctor crashes aren't symbolicated since we moved to Xcode Cloud
+/cortex-xcor-rum:android-doctor NDK crashes stopped after upgrading to 7.x
 ```
 
 Or describe the problem in plain language and let Claude pick the skill:

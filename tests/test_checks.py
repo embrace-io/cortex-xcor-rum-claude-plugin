@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Callable
 
 from scripts.check_plugin.checks import CHECKS
-from scripts.check_plugin.config import PLUGIN, PLUGIN_REL
+from scripts.check_plugin.config import (
+    PLATFORM_ALIASES,
+    PLUGIN,
+    PLUGIN_REL,
+    SKILL_PLATFORMS,
+)
 from scripts.check_plugin.repo import Repo
 from scripts.check_plugin.runner import run_checks
 
@@ -29,6 +34,7 @@ from .fixtures import (
     build_good_tree,
     manifest,
     marketplace_entry,
+    rename_skill,
 )
 
 
@@ -50,6 +56,10 @@ def _skill(old: str, new: str) -> Callable[[Tree], None]:
 
 def _skill_append(extra: str) -> Callable[[Tree], None]:
     return lambda tree: tree.edit(SKILL, lambda text: text + extra)
+
+
+def _rename_skill(name: str) -> Callable[[Tree], None]:
+    return lambda tree: rename_skill(tree, name)
 
 
 def _mcp(servers: dict) -> Callable[[Tree], None]:
@@ -106,6 +116,24 @@ MUTATIONS = (
         "skills_unquoted_colon",
         "skills",
         _skill("about the demo.", "about this: the demo."),
+    ),
+    Mutation("skill_names_uppercase", "skill-names", _rename_skill("Apple-demo")),
+    Mutation("skill_names_underscore", "skill-names", _rename_skill("apple_demo")),
+    *(
+        Mutation(
+            f"skill_names_{platform}_not_prefix",
+            "skill-names",
+            _rename_skill(f"demo-{platform}"),
+        )
+        for platform in SKILL_PLATFORMS
+    ),
+    *(
+        Mutation(
+            f"skill_names_{alias}_alias",
+            "skill-names",
+            _rename_skill(f"{alias}-demo"),
+        )
+        for alias in PLATFORM_ALIASES
     ),
     Mutation("skill_refs_missing_file", "skill-refs", _skill("notes.md", "gone.md")),
     Mutation(
@@ -279,6 +307,59 @@ class GoodTreeTests(unittest.TestCase):
         (self.tree.root / MANIFEST).unlink()
         report = _run(self.tree)
         self.assertEqual({f.check for f in report.fails}, {"layout"})
+
+
+class SkillNameTests(unittest.TestCase):
+    """The `skill-names` rule: `<platform>-<skill>` for one SDK, or no platform
+    at all for a skill that works across platforms. Cases loop over
+    SKILL_PLATFORMS and PLATFORM_ALIASES, so adding a platform tests it."""
+
+    def findings(self, name: str) -> list:
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = build_good_tree(Path(tmp))
+            rename_skill(tree, name)
+            return _run(tree).findings
+
+    def assert_passes(self, name: str) -> None:
+        with self.subTest(name=name):
+            self.assertEqual(self.findings(name), [])
+
+    def assert_fails(self, name: str, suggestion: str | None = None) -> None:
+        with self.subTest(name=name):
+            findings = self.findings(name)
+            self.assertEqual([f.check for f in findings], ["skill-names"])
+            if suggestion:
+                self.assertIn(repr(suggestion), findings[0].message)
+
+    def test_anything_after_a_platform_prefix_passes(self) -> None:
+        for platform in SKILL_PLATFORMS:
+            others = [p for p in SKILL_PLATFORMS if p != platform]
+            self.assert_passes(f"{platform}-demo")
+            self.assert_passes(f"{platform}-demo-tool-2")
+            self.assert_passes(f"{platform}-{others[0]}-demo")
+
+    def test_a_name_without_a_platform_is_a_cross_platform_skill(self) -> None:
+        for name in ("demo", "platform-discovery", "scenarios", "webview-crash"):
+            self.assert_passes(name)
+
+    def test_a_platform_after_the_first_segment_fails(self) -> None:
+        for platform in SKILL_PLATFORMS:
+            self.assert_fails(f"demo-{platform}", f"{platform}-demo")
+            self.assert_fails(f"demo-{platform}-tool", f"{platform}-demo-tool")
+
+    def test_a_bare_platform_name_fails(self) -> None:
+        for platform in SKILL_PLATFORMS:
+            self.assert_fails(platform)
+
+    def test_an_informal_platform_name_fails_anywhere(self) -> None:
+        for alias, platform in PLATFORM_ALIASES.items():
+            self.assert_fails(f"{alias}-demo", f"{platform}-demo")
+            self.assert_fails(f"demo-{alias}", f"{platform}-demo")
+            self.assert_fails(f"{platform}-{alias}-demo", f"{platform}-demo")
+
+    def test_names_that_arent_lowercase_and_hyphenated_fail(self) -> None:
+        for name in ("Apple-demo", "apple_demo", "apple--demo", "-apple-demo"):
+            self.assert_fails(name)
 
 
 class FailingCaseTests(unittest.TestCase):

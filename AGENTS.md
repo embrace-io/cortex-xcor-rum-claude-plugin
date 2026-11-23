@@ -32,12 +32,15 @@ The marketplace, the plugin, the plugin directory and the marketplace entry are 
 - Never rename the plugin, the marketplace or a published skill. Installed copies are keyed by those names, so a rename breaks existing installs. A removed or renamed skill is a major version bump.
 - The product is Cortex XCOR RUM (Real User Monitoring). In prose, write "Cortex XCOR RUM" on first mention and "XCOR RUM" after that. Add the "formerly" qualifier at most once per file.
 - Keep "Embrace" only where it is a literal name: code identifiers (`Embrace.setup`, `EmbraceIO`), packages (`io.embrace`), files (`embrace-config.json`), URLs and hosts (`embrace.io`, `mcp.embrace.io`, `*.emb-api.com`), the GitHub organization `embrace-io`, environment variable names, and a skill's `symptoms`, because users still say Embrace.
+- Name a skill for one SDK `<platform>-<skill>`, with one platform per SDK on the [SDK repositories page](https://embrace.io/docs/open-telemetry/sdk-repositories/): `android`, `apple`, `flutter`, `react-native`, `unity` or `web`. Examples are `apple-doctor` and `android-doctor`. The prefix groups each platform's skills together in the command list, and the rest of the name is free.
+- Give a skill that works across platforms a name with no platform in it, such as `platform-discovery`. A platform name anywhere but the start (`doctor-flutter`) reads as a misnamed SDK skill and fails the check.
+- Name Apple platforms `apple`, never `ios`, `tvos`, `watchos` or another Apple OS name, and React Native `react-native`, never `rn`. One Apple SDK covers iOS, tvOS and watchOS, so a name with one operating system in it is wrong for the others. Prose can still name a specific OS where only that OS applies, such as an iOS-only build setting.
 - Keep the plugin and marketplace descriptions general. The plugin holds all of our skills, so a description doesn't name one.
 - Name connectors after the product, not the old name: the bundled server's key in `.mcp.json` is `xcor-rum`, which Claude Code shows as `plugin:cortex-xcor-rum:xcor-rum`.
 
 ## Add a skill
 
-1. Create `plugins/cortex-xcor-rum/skills/<name>/SKILL.md`. Use a lowercase, hyphenated `<name>`, and set the frontmatter `name` to the same string. A mismatch fails the check.
+1. Create `plugins/cortex-xcor-rum/skills/<name>/SKILL.md`. Use a lowercase, hyphenated `<name>`, named `<platform>-<skill>` if the skill targets one SDK (`apple-doctor`) or with no platform in it if it works across platforms (`platform-discovery`), and set the frontmatter `name` to the same string. A mismatch or a misplaced platform fails the check.
 2. Write a `description` that says when to use the skill, with the phrases a user would type. Claude matches on it to load the skill on its own. Keep it under 1,536 characters, and quote it if it contains `: `, which YAML can't parse in a plain scalar.
 3. Put sibling files (knowledge base, templates) in the skill's directory and refer to them as `${CLAUDE_SKILL_DIR}/<file>`. The variable expands to the installed skill directory. The check fails on a reference that doesn't resolve.
 4. Include the hard rules below in the skill. The check requires the secrets rule: a list item that says to redact secrets.
@@ -69,7 +72,7 @@ One paragraph on what the skill does and the first thing it does.
 - **The user sends any escalation.** Show the user what to send and where. Don't post it yourself.
 ````
 
-The diagnostic skills (`doctor-ios`, `doctor-android`) use all three rules. A skill that only explains a concept can omit the last two, but it keeps the secrets rule.
+The diagnostic skills (`apple-doctor`, `android-doctor`) use all three rules. A skill that only explains a concept can omit the last two, but it keeps the secrets rule.
 
 ## Add a connector
 
@@ -127,6 +130,7 @@ The check needs only Python 3.10 or later. `black` is a development tool, pinned
 | :- | :- |
 | `layout` | One plugin. The marketplace name, the entry name, the `plugin.json` name and the plugin directory all equal `cortex-xcor-rum`. The version is semver. |
 | `skills` | Each skill directory has a `SKILL.md` with parseable frontmatter, `name` equal to the directory, and a non-empty `description` of at most 1,536 characters. |
+| `skill-names` | A skill name is lowercase letters and digits joined by hyphens. A name for one SDK is `<platform>-<skill>`, where the platform is `android`, `apple`, `flutter`, `react-native`, `unity` or `web`, and anything may follow the prefix. A name without a platform prefix is for a skill that works across platforms and can't have a platform in it. An informal platform name fails anywhere: an Apple OS name (`ios`, `ipados`, `macos`, `osx`, `tvos`, `visionos`, `watchos`) instead of `apple`, or `rn` instead of `react-native`. The check compares hyphen-separated segments, so `doctor-ios` fails and `scenarios` and `webview` pass, and it can't catch an informal name it doesn't list, such as `iphone`. |
 | `skill-refs` | Every `${CLAUDE_SKILL_DIR}/<file>` reference points to a file in that skill's directory. |
 | `secrets-rule` | Every `SKILL.md` has a list item that says to redact secrets, such as "Never reproduce secrets". |
 | `mcp` | Every server uses `http`, `sse` or `ws` with an `https://` or `wss://` URL, has no header that reads an environment variable or holds a literal credential, and pins any launcher version. |

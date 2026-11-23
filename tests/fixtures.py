@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
-from scripts.check_plugin.config import PLUGIN, PLUGIN_REL
+from scripts.check_plugin.config import PLUGIN, PLUGIN_REL, SKILLS_REL
 
 GOOD_SKILL = """---
 name: demo
@@ -24,7 +24,7 @@ Read ${CLAUDE_SKILL_DIR}/notes.md first.
 - **Never reproduce secrets.** Replace credentials with `<redacted>`.
 """
 
-SKILL = f"{PLUGIN_REL}/skills/demo/SKILL.md"
+SKILL = f"{SKILLS_REL}/demo/SKILL.md"
 NOTES = f"{PLUGIN_REL}/skills/demo/notes.md"
 MCP = f"{PLUGIN_REL}/.mcp.json"
 MANIFEST = f"{PLUGIN_REL}/.claude-plugin/plugin.json"
@@ -85,6 +85,15 @@ class Tree:
     def commit_changes(self) -> None:
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "change")
+
+
+def rename_skill(tree: Tree, name: str) -> None:
+    """Renames the demo skill's directory, frontmatter name and README entries."""
+    (tree.root / SKILL).parent.rename(tree.root / SKILLS_REL / name)
+    skill_md = f"{SKILLS_REL}/{name}/SKILL.md"
+    tree.edit(skill_md, lambda s: s.replace("name: demo", f"name: {name}"))
+    for readme in ("README.md", PLUGIN_README):
+        tree.edit(readme, lambda s: s.replace(f"/{PLUGIN}:demo", f"/{PLUGIN}:{name}"))
 
 
 def build_good_tree(root: Path) -> Tree:

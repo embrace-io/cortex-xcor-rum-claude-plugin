@@ -6,8 +6,8 @@
 # MCP server tools), then returns `canonical_answer`. If any `escalate_if`
 # condition holds, route to XCOR RUM support with a filled-in `escalation_template`.
 #
-# Scope: Android and the Android side of React Native. iOS-only patterns live in
-# the doctor-ios skill. The FCM entry covers Android, iOS and React Native, and
+# Scope: Android and the Android side of React Native. Apple-only patterns live in
+# the apple-doctor skill. The FCM entry covers Android, iOS and React Native, and
 # only this index has it.
 #
 # Schema

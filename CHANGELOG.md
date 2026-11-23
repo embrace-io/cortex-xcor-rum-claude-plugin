@@ -8,7 +8,7 @@ First release of the consolidated plugin.
 
 ### Added
 
-- One `cortex-xcor-rum` plugin with the `doctor-ios` and `doctor-android` skills, invoked as `/cortex-xcor-rum:doctor-ios` and `/cortex-xcor-rum:doctor-android`.
+- One `cortex-xcor-rum` plugin with the `apple-doctor` and `android-doctor` skills, invoked as `/cortex-xcor-rum:apple-doctor` and `/cortex-xcor-rum:android-doctor`. `apple-doctor` covers iOS, tvOS and watchOS apps.
 - The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, OAuth) in `.mcp.json`.
 - A listing icon at `.claude-plugin/icon.png`: the Cortex XCOR mark on a dark 1024 px square.
 - `privacyPolicyUrl` in `plugin.json`.
@@ -19,7 +19,7 @@ First release of the consolidated plugin.
 
 - Replaces the `embrace-doctor-ios` and `embrace-doctor-android` plugins with the single `cortex-xcor-rum` plugin, and renames the marketplace from `embrace-claude-plugin` to `cortex-xcor-rum`.
 - The marketplace, plugin and skills name the product Cortex XCOR RUM (formerly Embrace).
-- Knowledge bases for both doctor skills: `MCP_SKILL_QA_INDEX.yaml` (24 iOS entries, 12 Android entries) beside each `SKILL.md`.
+- Knowledge bases for both doctor skills: `MCP_SKILL_QA_INDEX.yaml` (24 Apple entries, 12 Android entries) beside each `SKILL.md`.
 - The doctor skills stop and tell the user when their knowledge base or the app is missing.
 
 ### Migration

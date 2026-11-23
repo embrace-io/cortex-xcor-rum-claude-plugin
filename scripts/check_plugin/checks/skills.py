@@ -1,13 +1,16 @@
-"""skills, skill-refs and secrets-rule: what each SKILL.md must contain."""
+"""skills, skill-names, skill-refs and secrets-rule: the rules for each skill."""
 
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Iterator, NamedTuple
 
 from ..config import (
     DESCRIPTION_CAP,
+    PLATFORM_ALIASES,
     SECRETS_RULE,
     SKILL_DIR_REF,
+    SKILL_NAME,
+    SKILL_PLATFORMS,
     SKILLS_REL,
 )
 from ..frontmatter import FrontmatterError, parse_frontmatter
@@ -48,6 +51,100 @@ def check_skills(repo: Repo) -> Iterator[Issue]:
                 f"description is {len(description)} characters, "
                 f"over the {DESCRIPTION_CAP} cap",
             )
+
+
+def check_skill_names(repo: Repo) -> Iterator[Issue]:
+    """A skill name is `<platform>-<skill>` for one SDK, or has no platform in
+    it for a skill that works across platforms.
+
+    The check compares hyphen-separated segments, so `ios` fails but a word
+    that only contains it, such as `scenarios`, passes. Anything after a
+    platform prefix passes except an informal platform name. Skill names are
+    permanent once a version ships, so the check stops a new name from
+    breaking the pattern rather than leaving a rename for later.
+    """
+    for skill in repo.skills():
+        if not SKILL_NAME.fullmatch(skill.name):
+            yield Issue(
+                skill.rel,
+                "skill name must be lowercase letters and digits joined by "
+                "hyphens, such as 'apple-doctor'",
+            )
+            continue
+        problem = _skill_name_problem(skill.name)
+        if problem:
+            yield Issue(skill.rel, problem)
+
+
+class _Token(NamedTuple):
+    text: str  # the segment, or `react-native` when two segments spell it
+    platform: str | None  # the canonical platform the token names, if any
+
+
+def _tokens(name: str) -> list[_Token]:
+    segments = name.split("-")
+    tokens: list[_Token] = []
+    i = 0
+    while i < len(segments):
+        if segments[i : i + 2] == ["react", "native"]:
+            tokens.append(_Token("react-native", "react-native"))
+            i += 2
+            continue
+        segment = segments[i]
+        if segment in SKILL_PLATFORMS:
+            tokens.append(_Token(segment, segment))
+        else:
+            tokens.append(_Token(segment, PLATFORM_ALIASES.get(segment)))
+        i += 1
+    return tokens
+
+
+def _platform_prefix(name: str) -> str | None:
+    return next((p for p in SKILL_PLATFORMS if name.startswith(f"{p}-")), None)
+
+
+def _skill_name_problem(name: str) -> str | None:
+    tokens = _tokens(name)
+    alias = next((t for t in tokens if t.platform and t.text != t.platform), None)
+    suggestion = _suggest(tokens)
+    if alias:
+        example = f", as in {suggestion!r}" if suggestion else ""
+        return (
+            f"skill name has the informal platform name {alias.text!r}; "
+            f"use {alias.platform!r}{example}"
+        )
+    hint = f"; name it {suggestion!r}" if suggestion else ""
+    if _platform_prefix(name):
+        return None
+    platform = next((t.platform for t in tokens if t.platform), None)
+    if platform is None:
+        return None
+    if not suggestion:
+        hint = f"; add the skill's name after '{platform}-'"
+    return (
+        f"skill name has the platform {platform!r} but doesn't start with "
+        f"'{platform}-'; a name without a platform prefix is for a skill that "
+        f"works across platforms{hint}"
+    )
+
+
+def _suggest(tokens: list[_Token]) -> str | None:
+    """Returns the name with informal platform names made canonical and the
+    first platform moved to the front, or None when no skill name is left."""
+    canonical: list[_Token] = []
+    seen: set[str] = set()
+    for token in tokens:
+        if token.platform:
+            if token.platform in seen:
+                continue
+            seen.add(token.platform)
+            token = _Token(token.platform, token.platform)
+        canonical.append(token)
+    first = next((t for t in canonical if t.platform), None)
+    if first is None:
+        return None
+    rest = [t.text for t in canonical if t is not first]
+    return "-".join([first.text, *rest]) if rest else None
 
 
 def check_skill_refs(repo: Repo) -> Iterator[Issue]:
