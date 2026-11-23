@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Callable
 
 from scripts.check_plugin.checks import CHECKS
-from scripts.check_plugin.config import PLUGIN, PLUGIN_REL
+from scripts.check_plugin.config import (
+    PLATFORM_ALIASES,
+    PLUGIN,
+    PLUGIN_REL,
+    SKILL_PLATFORMS,
+)
 from scripts.check_plugin.repo import Repo
 from scripts.check_plugin.runner import run_checks
 
@@ -112,37 +117,23 @@ MUTATIONS = (
         "skills",
         _skill("about the demo.", "about this: the demo."),
     ),
-    Mutation("skill_names_ios_suffix", "skill-names", _rename_skill("doctor-ios")),
-    Mutation("skill_names_ios_prefix", "skill-names", _rename_skill("ios-doctor")),
-    Mutation("skill_names_tvos", "skill-names", _rename_skill("tvos-doctor")),
-    Mutation(
-        "skill_names_platform_suffix",
-        "skill-names",
-        _rename_skill("doctor-android"),
+    Mutation("skill_names_uppercase", "skill-names", _rename_skill("Apple-demo")),
+    Mutation("skill_names_underscore", "skill-names", _rename_skill("apple_demo")),
+    *(
+        Mutation(
+            f"skill_names_{platform}_not_prefix",
+            "skill-names",
+            _rename_skill(f"demo-{platform}"),
+        )
+        for platform in SKILL_PLATFORMS
     ),
-    Mutation("skill_names_uppercase", "skill-names", _rename_skill("iOS-doctor")),
-    Mutation("skill_names_underscore", "skill-names", _rename_skill("doctor_ios")),
-    Mutation(
-        "skill_names_two_platforms",
-        "skill-names",
-        _rename_skill("android-apple-bridge"),
-    ),
-    Mutation(
-        "skill_names_framework_suffix",
-        "skill-names",
-        _rename_skill("doctor-flutter"),
-    ),
-    Mutation("skill_names_rn_alias", "skill-names", _rename_skill("rn-doctor")),
-    Mutation("skill_names_web_and_native", "skill-names", _rename_skill("web-android")),
-    Mutation(
-        "skill_names_native_side_not_after_prefix",
-        "skill-names",
-        _rename_skill("react-native-linking-android"),
-    ),
-    Mutation(
-        "skill_names_framework_with_two_native_sides",
-        "skill-names",
-        _rename_skill("unity-apple-android-build"),
+    *(
+        Mutation(
+            f"skill_names_{alias}_alias",
+            "skill-names",
+            _rename_skill(f"{alias}-demo"),
+        )
+        for alias in PLATFORM_ALIASES
     ),
     Mutation("skill_refs_missing_file", "skill-refs", _skill("notes.md", "gone.md")),
     Mutation(
@@ -297,61 +288,6 @@ class GoodTreeTests(unittest.TestCase):
         )
         self.assertEqual(_run(self.tree).findings, [])
 
-    def test_platform_prefixed_and_platform_free_skill_names_pass(self) -> None:
-        for name in (
-            "apple-doctor",
-            "android-doctor",
-            "flutter-doctor",
-            "react-native-doctor",
-            "unity-doctor",
-            "web-doctor",
-            "react-native-android-linking",
-            "flutter-apple-build",
-            "doctor",
-            "scenarios",
-            "native-crash",
-            "webview-crash",
-        ):
-            with self.subTest(name=name):
-                tmp = tempfile.TemporaryDirectory()
-                self.addCleanup(tmp.cleanup)
-                tree = build_good_tree(Path(tmp.name))
-                rename_skill(tree, name)
-                self.assertEqual(_run(tree).findings, [])
-
-    def test_skill_name_finding_suggests_the_prefixed_name(self) -> None:
-        rename_skill(self.tree, "doctor-ios")
-        [finding] = _run(self.tree).findings
-        self.assertIn("'apple-doctor'", finding.message)
-
-    def test_skill_name_with_apple_prefix_and_os_suggests_dropping_the_os(
-        self,
-    ) -> None:
-        rename_skill(self.tree, "apple-ios-bridge")
-        [finding] = _run(self.tree).findings
-        self.assertIn("'apple-bridge'", finding.message)
-
-    def test_skill_name_with_two_native_platforms_has_no_suggestion(self) -> None:
-        rename_skill(self.tree, "android-apple-bridge")
-        [finding] = _run(self.tree).findings
-        self.assertIn("more than one platform", finding.message)
-        self.assertNotIn("as in", finding.message)
-
-    def test_framework_skill_name_suggestions_keep_the_native_side(self) -> None:
-        cases = {
-            "android-react-native-linking": "'react-native-android-linking'",
-            "react-native-ios-build": "'react-native-apple-build'",
-            "rn-doctor": "'react-native-doctor'",
-        }
-        for name, suggestion in cases.items():
-            with self.subTest(name=name):
-                tmp = tempfile.TemporaryDirectory()
-                self.addCleanup(tmp.cleanup)
-                tree = build_good_tree(Path(tmp.name))
-                rename_skill(tree, name)
-                [finding] = _run(tree).findings
-                self.assertIn(suggestion, finding.message)
-
     def test_reworded_secrets_rule_passes(self) -> None:
         self.tree.edit(
             SKILL,
@@ -371,6 +307,59 @@ class GoodTreeTests(unittest.TestCase):
         (self.tree.root / MANIFEST).unlink()
         report = _run(self.tree)
         self.assertEqual({f.check for f in report.fails}, {"layout"})
+
+
+class SkillNameTests(unittest.TestCase):
+    """The `skill-names` rule: `<platform>-<skill>` for one SDK, or no platform
+    at all for a skill that works across platforms. Cases loop over
+    SKILL_PLATFORMS and PLATFORM_ALIASES, so adding a platform tests it."""
+
+    def findings(self, name: str) -> list:
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = build_good_tree(Path(tmp))
+            rename_skill(tree, name)
+            return _run(tree).findings
+
+    def assert_passes(self, name: str) -> None:
+        with self.subTest(name=name):
+            self.assertEqual(self.findings(name), [])
+
+    def assert_fails(self, name: str, suggestion: str | None = None) -> None:
+        with self.subTest(name=name):
+            findings = self.findings(name)
+            self.assertEqual([f.check for f in findings], ["skill-names"])
+            if suggestion:
+                self.assertIn(repr(suggestion), findings[0].message)
+
+    def test_anything_after_a_platform_prefix_passes(self) -> None:
+        for platform in SKILL_PLATFORMS:
+            others = [p for p in SKILL_PLATFORMS if p != platform]
+            self.assert_passes(f"{platform}-demo")
+            self.assert_passes(f"{platform}-demo-tool-2")
+            self.assert_passes(f"{platform}-{others[0]}-demo")
+
+    def test_a_name_without_a_platform_is_a_cross_platform_skill(self) -> None:
+        for name in ("demo", "platform-discovery", "scenarios", "webview-crash"):
+            self.assert_passes(name)
+
+    def test_a_platform_after_the_first_segment_fails(self) -> None:
+        for platform in SKILL_PLATFORMS:
+            self.assert_fails(f"demo-{platform}", f"{platform}-demo")
+            self.assert_fails(f"demo-{platform}-tool", f"{platform}-demo-tool")
+
+    def test_a_bare_platform_name_fails(self) -> None:
+        for platform in SKILL_PLATFORMS:
+            self.assert_fails(platform)
+
+    def test_an_informal_platform_name_fails_anywhere(self) -> None:
+        for alias, platform in PLATFORM_ALIASES.items():
+            self.assert_fails(f"{alias}-demo", f"{platform}-demo")
+            self.assert_fails(f"demo-{alias}", f"{platform}-demo")
+            self.assert_fails(f"{platform}-{alias}-demo", f"{platform}-demo")
+
+    def test_names_that_arent_lowercase_and_hyphenated_fail(self) -> None:
+        for name in ("Apple-demo", "apple_demo", "apple--demo", "-apple-demo"):
+            self.assert_fails(name)
 
 
 class FailingCaseTests(unittest.TestCase):
