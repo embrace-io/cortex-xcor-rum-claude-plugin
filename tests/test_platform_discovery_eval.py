@@ -1,14 +1,19 @@
 """Tests for the platform-discovery eval's report parser and scorer.
 
 The eval's published numbers come from these two functions, so each verdict and
-each way a model rewords the `**Platform:**` line has a case here. The eval lives in
+each rewording of the `**Platform:**` line seen in a run has a case here. The
+extraction tests cover the only code that handles downloaded archives. The eval lives in
 a directory with a hyphen in its name, which isn't importable, so it's loaded by path.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
+import shutil
+import tarfile
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -87,6 +92,35 @@ class ParseReportTests(unittest.TestCase):
         )
         self.assertEqual(report["side"], "apple")
 
+    def test_evidence_without_backticks_does_not_change_the_side(self):
+        report = run.parse_report(
+            "**Platform:** Flutter, Apple side (pubspec.yaml:12 has embrace; the user "
+            "said iPhone, nothing about the Android side)"
+        )
+        self.assertEqual(report["side"], "apple")
+
+    def test_evidence_without_backticks_does_not_hide_the_sdk(self):
+        report = run.parse_report(
+            "**Platform:** Android (app/build.gradle:11 applies io.embrace.gradle, no "
+            "cross-platform manifest found)"
+        )
+        self.assertTrue(report["sdk"])
+
+    def test_not_detected_counts_only_at_the_start(self):
+        report = run.parse_report(
+            "**Platform:** Android, React Native not detected (`app/build.gradle:3`)"
+        )
+        self.assertEqual(report["platform"], "android")
+
+    def test_platform_qualifiers_are_part_of_the_claim(self):
+        report = run.parse_report("**Platform:** Apple (tvOS) (`project.pbxproj:11`)")
+        self.assertEqual(report["platform"], "apple")
+        self.assertTrue(report["sdk"])
+
+    def test_an_empty_line_does_not_read_the_next_paragraph(self):
+        report = run.parse_report("**Platform:**\nThis is an Android app.")
+        self.assertIsNone(report)
+
     def test_no_report(self):
         self.assertIsNone(run.parse_report("Which platform is your app on?"))
 
@@ -145,6 +179,75 @@ class ScoreTests(unittest.TestCase):
         )
         self.assertEqual(result, "right")
         self.assertEqual(len(notes), 2)
+
+
+def tarball(members):
+    """Build a gzipped tarball in memory from (name, kind, payload) tuples."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, kind, payload in members:
+            info = tarfile.TarInfo(name)
+            if kind == "file":
+                data = payload.encode()
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+            elif kind == "symlink":
+                info.type = tarfile.SYMTYPE
+                info.linkname = payload
+                tar.addfile(info)
+    buf.seek(0)
+    return buf
+
+
+class ExtractTests(unittest.TestCase):
+    def extract(self, members, subdir=""):
+        dest = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(dest, ignore_errors=True))
+        run.extract_subdir(tarball(members), subdir, dest)
+        return dest
+
+    def test_extracts_only_the_subdirectory(self):
+        dest = self.extract(
+            [
+                ("repo-abc/README.md", "file", "top"),
+                ("repo-abc/examples/app/build.gradle", "file", "gradle"),
+            ],
+            subdir="examples/app",
+        )
+        self.assertEqual((dest / "build.gradle").read_text(), "gradle")
+        self.assertFalse((dest / "README.md").exists())
+
+    def test_skips_names_that_leave_the_destination(self):
+        dest = self.extract(
+            [
+                ("repo-abc/ok.txt", "file", "ok"),
+                ("repo-abc/../../escape.txt", "file", "bad"),
+                ("repo-abc//etc/abs.txt", "file", "bad"),
+            ]
+        )
+        self.assertTrue((dest / "ok.txt").exists())
+        self.assertFalse((dest.parent / "escape.txt").exists())
+        self.assertEqual(
+            sorted(p.name for p in dest.rglob("*") if p.is_file()), ["ok.txt"]
+        )
+
+    def test_skips_links(self):
+        dest = self.extract([("repo-abc/link", "symlink", "/etc/passwd")])
+        self.assertFalse((dest / "link").exists())
+        self.assertFalse((dest / "link").is_symlink())
+
+    def test_strip_tree_removes_agent_files_and_links(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        (root / ".claude").mkdir()
+        (root / ".claude" / "settings.json").write_text("{}")
+        (root / "CLAUDE.md").write_text("x")
+        (root / "sub").mkdir()
+        (root / "sub" / "agents.md").write_text("x")
+        (root / "app.txt").write_text("keep")
+        (root / "link").symlink_to(root / "app.txt")
+        run.strip_tree(root)
+        self.assertEqual(sorted(p.name for p in root.rglob("*")), ["app.txt", "sub"])
 
 
 class CorpusTests(unittest.TestCase):

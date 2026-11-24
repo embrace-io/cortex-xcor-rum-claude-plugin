@@ -1,12 +1,12 @@
 ---
 name: doctor
-description: Use when the user asks to run the Cortex XCOR RUM (formerly Embrace) doctor, or to diagnose or troubleshoot an XCOR RUM SDK integration problem without saying which platform their app runs on, for example "run the XCOR RUM doctor," "diagnose my XCOR RUM setup," "check my XCOR RUM integration," "data stopped arriving in XCOR RUM after our release," or "sessions are missing since our last release." Detects the app's platform with `/cortex-xcor-rum:platform-discovery`, then runs that platform's doctor skill, such as `/cortex-xcor-rum:apple-doctor` or `/cortex-xcor-rum:android-doctor`. Not needed when the user names the platform or calls a platform's doctor directly.
+description: Use when the user asks to run the Cortex XCOR RUM (formerly Embrace) doctor, or to diagnose or troubleshoot an XCOR RUM SDK integration problem without saying which platform their app runs on, for example "run the XCOR RUM doctor," "diagnose my XCOR RUM setup," "check my XCOR RUM integration," "data stopped arriving in XCOR RUM after our release," or "sessions are missing since our last release." Detects the app's platform with `/cortex-xcor-rum:platform-discovery`, then runs that platform's doctor skill, such as `/cortex-xcor-rum:apple-doctor` or `/cortex-xcor-rum:android-doctor`. Not needed when the user calls a platform's doctor directly.
 disallowed-tools: Bash, Edit, Write, NotebookEdit, WebFetch, Agent
 ---
 
 # Cortex XCOR RUM doctor
 
-This skill is the one command for diagnosing an XCOR RUM SDK problem on any platform. It finds the app's platform, then runs the doctor skill for that platform, which matches the problem against known patterns and checks the user's repo and XCOR RUM data.
+This skill is the one command for diagnosing an XCOR RUM SDK problem whatever the platform. It finds the app's platform, then runs the doctor skill for that platform, or points the user to support where the plugin has no doctor for it yet. The doctor matches the problem against known patterns and checks the user's repo and XCOR RUM data.
 
 ## Procedure
 

@@ -119,17 +119,32 @@ def init_repo(path):
     subprocess.run(["git", "init", "-q", str(path)], check=True)
 
 
+# Records what each project was fetched from, so a changed `ref` or `subdir` in
+# corpus.json fetches it again. It lives beside the projects, not inside them, so no
+# session can read a repository name from it.
+SOURCE_DIR = ".sources"
+
+
 def fetch_source(name, source, corpus_dir):
     dest = corpus_dir / name
+    pinned = f"{source['repo']}@{source['ref']}:{source.get('subdir', '')}\n"
+    marker = corpus_dir / SOURCE_DIR / name
     if dest.exists():
-        return f"have {name}"
+        if marker.exists() and marker.read_text(encoding="utf-8") == pinned:
+            return f"have {name}"
+        shutil.rmtree(dest)
     url = f"https://codeload.github.com/{source['repo']}/tar.gz/{source['ref']}"
     tmp = Path(tempfile.mkdtemp(dir=corpus_dir, prefix=f".{name}-"))
-    with urllib.request.urlopen(url) as resp:
-        extract_subdir(io.BufferedReader(resp), source.get("subdir", ""), tmp)
-    strip_tree(tmp)
-    init_repo(tmp)
-    tmp.rename(dest)
+    try:
+        with urllib.request.urlopen(url) as resp:
+            extract_subdir(io.BufferedReader(resp), source.get("subdir", ""), tmp)
+        strip_tree(tmp)
+        init_repo(tmp)
+        tmp.rename(dest)
+        marker.parent.mkdir(exist_ok=True)
+        marker.write_text(pinned, encoding="utf-8")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     return f"fetched {name}"
 
 
@@ -170,19 +185,15 @@ def fetch(corpus, corpus_dir):
 
 def parse_report(text):
     """Read the skill's `**Platform:**` line into its parts, or None if there is none."""
-    match = re.search(r"\*\*Platform:\*\*\s*(.+)", text or "")
+    match = re.search(r"\*\*Platform:\*\*[ \t]*([^\n]+)", text or "")
     if not match:
         return None
     line = match.group(1).strip()
-    head = re.split(r"\s\(", line, maxsplit=1)[0].lower()
-    # The claim ends where the evidence starts: the first parenthesis that quotes code
-    # or the user. Earlier ones qualify the platform, as in "Web (React)" or "React
-    # Native (Expo)". Only the claim is parsed, so evidence such as "you said nothing
-    # about the Android side" can't change the answer.
-    claim = re.split(r"\s\((?=[^)]*(?:`|\byou))", line, maxsplit=1)[0]
+    claim = split_claim(line)
+    head = re.split(r"\s\(", claim, maxsplit=1)[0].lower()
     lower = claim.lower()
     report = {"line": line, "platform": None, "side": None, "app": None}
-    if "not detected" in head:
+    if head.startswith("not detected"):
         report["platform"] = "ask"
     else:
         for label, platform in PLATFORMS.items():
@@ -205,8 +216,29 @@ def parse_report(text):
     return report
 
 
+# Short parentheses that qualify the platform rather than give evidence.
+QUALIFIER = re.compile(r"(no )?react|expo|ios|ipados|tvos|watchos|macos|native", re.I)
+
+
+def split_claim(line):
+    """Return the claim part of a `**Platform:**` line, without its evidence.
+
+    The evidence is the first parenthesis that isn't a short qualifier such as
+    "(React)", "(Expo)" or "(tvOS)". Only the claim is parsed, so evidence such as
+    "nothing about the Android side" can't change the answer.
+    """
+    for match in re.finditer(r"\s\(([^()]*)\)?", line):
+        if not QUALIFIER.fullmatch(match.group(1).strip()):
+            return line[: match.start()]
+    return line
+
+
 def rescore(corpus, results_path, model):
-    """Score a results file again, after a change to the parser or the corpus."""
+    """Score a results file again, after a change to the parser or the corpus.
+
+    The rescored rows go to `<name>.rescored.json` beside the input, which is left as
+    it was. Rows for cases no longer in the corpus are left out of the new file.
+    """
     expected = {case_id(c): c["expect"] for c in corpus["cases"]}
     results = json.loads(results_path.read_text(encoding="utf-8"))
     kept = []
@@ -219,9 +251,10 @@ def rescore(corpus, results_path, model):
             row["report"] = report["line"] if report else None
             row["verdict"], row["notes"] = score(expected[row["case"]], report)
         kept.append(row)
-    results = kept
-    results_path.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
-    print_summary(results, model)
+    out_path = results_path.with_suffix(".rescored.json")
+    out_path.write_text(json.dumps(kept, indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {out_path}")
+    print_summary(kept, model)
 
 
 def score(expect, report):
@@ -296,6 +329,12 @@ def run_case(case, prompt, corpus_dir, model, config_dir, timeout):
         )
     except subprocess.TimeoutExpired as err:
         return {"result": "", "error": f"timeout: {err}"[:300], "tools": []}
+    except OSError as err:
+        return {
+            "result": "",
+            "error": f"could not start claude: {err}"[:300],
+            "tools": [],
+        }
     tools, out = [], {}
     for line in proc.stdout.splitlines():
         try:
@@ -325,9 +364,31 @@ def run_case(case, prompt, corpus_dir, model, config_dir, timeout):
 
 def run(corpus, corpus_dir, model, jobs, out_path, only, timeout):
     cases = [c for c in corpus["cases"] if not only or re.search(only, case_id(c))]
+    if not shutil.which("claude"):
+        sys.exit("claude isn't on PATH: install Claude Code first")
+    missing = sorted(
+        {
+            case_id(c)
+            for c in cases
+            if not (corpus_dir / c["project"] / c.get("cwd", "")).is_dir()
+        }
+    )
+    if missing:
+        sys.exit(f"missing project directories, run fetch first: {', '.join(missing)}")
     config_dir = Path(tempfile.mkdtemp(prefix="platform-discovery-eval-"))
     (config_dir / "settings.json").write_text("{}", encoding="utf-8")
     results = []
+    try:
+        run_cases(corpus, cases, corpus_dir, model, jobs, config_dir, timeout, results)
+    finally:
+        # Written even when a run is interrupted, so finished sessions aren't lost.
+        shutil.rmtree(config_dir, ignore_errors=True)
+        results.sort(key=lambda r: r["case"])
+        out_path.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+    print_summary(results, model)
+
+
+def run_cases(corpus, cases, corpus_dir, model, jobs, config_dir, timeout, results):
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
         futures = {
             pool.submit(
@@ -358,10 +419,6 @@ def run(corpus, corpus_dir, model, jobs, out_path, only, timeout):
             }
             results.append(row)
             print(f"{verdict:9} {row['case']:45} {row['report']}", flush=True)
-    shutil.rmtree(config_dir, ignore_errors=True)
-    results.sort(key=lambda r: r["case"])
-    out_path.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
-    print_summary(results, model)
 
 
 def print_summary(results, model):
