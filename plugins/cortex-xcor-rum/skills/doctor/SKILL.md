@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Use when the user asks to run the Cortex XCOR RUM (formerly Embrace) doctor, or to diagnose or troubleshoot an XCOR RUM SDK integration problem without saying which platform their app runs on, for example "run the XCOR RUM doctor," "diagnose my XCOR RUM setup," "check my XCOR RUM integration," "data stopped arriving in XCOR RUM after our release," or "sessions are missing since our last release." Detects the app's platform with `/cortex-xcor-rum:platform-discovery`, then runs that platform's doctor skill, such as `/cortex-xcor-rum:apple-doctor` or `/cortex-xcor-rum:android-doctor`. Not needed when the user calls a platform's doctor directly.
+description: Use when the user asks to run the Cortex XCOR RUM (formerly Embrace) doctor, or to diagnose or troubleshoot an XCOR RUM SDK integration problem without calling a platform's doctor, including when they mention Android or iOS (a React Native, Flutter or Unity app has both), for example "run the XCOR RUM doctor," "diagnose my XCOR RUM setup," "check my XCOR RUM integration," "data stopped arriving in XCOR RUM after our release," or "sessions are missing since our last release." Detects the app's platform with `/cortex-xcor-rum:platform-discovery`, then runs that platform's doctor skill, such as `/cortex-xcor-rum:apple-doctor` or `/cortex-xcor-rum:android-doctor`. Not needed when the user calls a platform's doctor directly.
 disallowed-tools: Bash, Edit, Write, NotebookEdit, WebFetch, Agent
 ---
 

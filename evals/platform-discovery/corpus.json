@@ -41,6 +41,7 @@
     {"project": "ecommerce-flutter", "prompt": "android", "expect": {"platform": "flutter", "side": "android", "sdk": true}},
     {"project": "ecommerce-flutter", "cwd": "android", "prompt": "android", "expect": {"platform": "flutter", "side": "android", "sdk": true}},
     {"project": "ecommerce-flutter", "cwd": "android/app", "prompt": "android", "expect": {"platform": "flutter", "side": "android", "sdk": true}},
+    {"project": "ecommerce-flutter", "cwd": "android/app/src/main/kotlin/io/embrace/embrace_ecommerce_flutter", "prompt": "android", "expect": {"platform": "flutter", "side": "android", "sdk": true}},
     {"project": "ecommerce-react-native", "cwd": "ios", "prompt": "apple", "expect": {"platform": "react-native", "side": "apple", "sdk": true}},
     {"project": "flutter-dartastic", "prompt": "generic", "expect": {"platform": "flutter", "side": "ask", "sdk": false}},
     {"project": "otel-demo-web", "prompt": "generic", "expect": {"platform": "web", "react": true, "sdk": true}},

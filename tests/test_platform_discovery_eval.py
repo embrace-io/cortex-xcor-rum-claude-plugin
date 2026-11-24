@@ -14,6 +14,7 @@ import json
 import shutil
 import tarfile
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -121,6 +122,40 @@ class ParseReportTests(unittest.TestCase):
         report = run.parse_report("**Platform:**\nThis is an Android app.")
         self.assertIsNone(report)
 
+    def test_qualifiers_with_versions_are_part_of_the_claim(self):
+        report = run.parse_report(
+            "**Platform:** React Native (Expo SDK 52), Android side (`package.json:58`)"
+        )
+        self.assertEqual(report["platform"], "react-native")
+        self.assertEqual(report["side"], "android")
+        report = run.parse_report(
+            "**Platform:** Web (React 18), no XCOR RUM SDK found (`package.json:13`)"
+        )
+        self.assertTrue(report["react"])
+        self.assertFalse(report["sdk"])
+
+    def test_a_file_reference_in_parentheses_ends_the_claim(self):
+        report = run.parse_report(
+            "**Platform:** Flutter (pubspec.yaml:3), Android side"
+        )
+        self.assertEqual(report["platform"], "flutter")
+
+    def test_evidence_after_a_dash_does_not_change_the_side(self):
+        report = run.parse_report(
+            "**Platform:** Flutter, Apple side - you said iPhone, nothing about the "
+            "Android side"
+        )
+        self.assertEqual(report["side"], "apple")
+
+    def test_hyphenated_and_prefixed_spellings(self):
+        self.assertEqual(
+            run.parse_report("**Platform:** React-Native, side not known")["platform"],
+            "react-native",
+        )
+        self.assertEqual(
+            run.parse_report("**Platform:** platform not detected")["platform"], "ask"
+        )
+
     def test_no_report(self):
         self.assertIsNone(run.parse_report("Which platform is your app on?"))
 
@@ -218,18 +253,25 @@ class ExtractTests(unittest.TestCase):
         self.assertFalse((dest / "README.md").exists())
 
     def test_skips_names_that_leave_the_destination(self):
-        dest = self.extract(
-            [
-                ("repo-abc/ok.txt", "file", "ok"),
-                ("repo-abc/../../escape.txt", "file", "bad"),
-                ("repo-abc//etc/abs.txt", "file", "bad"),
-            ]
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        dest = root / "a" / "b" / "dest"
+        dest.mkdir(parents=True)
+        outside = root / "outside.txt"
+        run.extract_subdir(
+            tarball(
+                [
+                    ("repo-abc/ok.txt", "file", "ok"),
+                    ("repo-abc/../../escape.txt", "file", "bad"),
+                    ("repo-abc/../../../../outside.txt", "file", "bad"),
+                    (f"repo-abc/{outside}", "file", "bad"),
+                ]
+            ),
+            "",
+            dest,
         )
-        self.assertTrue((dest / "ok.txt").exists())
-        self.assertFalse((dest.parent / "escape.txt").exists())
-        self.assertEqual(
-            sorted(p.name for p in dest.rglob("*") if p.is_file()), ["ok.txt"]
-        )
+        files = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file())
+        self.assertEqual(files, [str(Path("a/b/dest/ok.txt"))])
 
     def test_skips_links(self):
         dest = self.extract([("repo-abc/link", "symlink", "/etc/passwd")])
@@ -248,6 +290,30 @@ class ExtractTests(unittest.TestCase):
         (root / "link").symlink_to(root / "app.txt")
         run.strip_tree(root)
         self.assertEqual(sorted(p.name for p in root.rglob("*")), ["app.txt", "sub"])
+
+
+class InterruptTests(unittest.TestCase):
+    def test_a_failure_cancels_the_sessions_still_queued(self):
+        started = []
+
+        def fake_run_case(case, prompt, corpus_dir, model, config_dir, timeout):
+            started.append(case["project"])
+            if case["project"] == "p0":
+                raise KeyboardInterrupt
+            time.sleep(0.05)
+            return {"result": "", "error": None, "tools": []}
+
+        cases = [
+            {"project": f"p{i}", "prompt": "generic", "expect": {"platform": "web"}}
+            for i in range(6)
+        ]
+        corpus = {"prompts": {"generic": "x"}}
+        original = run.run_case
+        run.run_case = fake_run_case
+        self.addCleanup(setattr, run, "run_case", original)
+        with self.assertRaises(KeyboardInterrupt):
+            run.run_cases(corpus, cases, Path("."), "m", 1, Path("."), 1, [])
+        self.assertLess(len(started), len(cases))
 
 
 class CorpusTests(unittest.TestCase):

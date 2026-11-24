@@ -42,6 +42,7 @@ STRIPPED_NAMES = {".claude", ".cursor", ".mcp.json", ".git", "claude.md", "agent
 
 PLATFORMS = {
     "react native": "react-native",
+    "react-native": "react-native",
     "android": "android",
     "apple": "apple",
     "flutter": "flutter",
@@ -132,7 +133,6 @@ def fetch_source(name, source, corpus_dir):
     if dest.exists():
         if marker.exists() and marker.read_text(encoding="utf-8") == pinned:
             return f"have {name}"
-        shutil.rmtree(dest)
     url = f"https://codeload.github.com/{source['repo']}/tar.gz/{source['ref']}"
     tmp = Path(tempfile.mkdtemp(dir=corpus_dir, prefix=f".{name}-"))
     try:
@@ -140,6 +140,10 @@ def fetch_source(name, source, corpus_dir):
             extract_subdir(io.BufferedReader(resp), source.get("subdir", ""), tmp)
         strip_tree(tmp)
         init_repo(tmp)
+        # Replace an older tree only once the new one is complete, so a failed
+        # download keeps the project that was there.
+        if dest.exists():
+            shutil.rmtree(dest)
         tmp.rename(dest)
         marker.parent.mkdir(exist_ok=True)
         marker.write_text(pinned, encoding="utf-8")
@@ -193,7 +197,7 @@ def parse_report(text):
     head = re.split(r"\s\(", claim, maxsplit=1)[0].lower()
     lower = claim.lower()
     report = {"line": line, "platform": None, "side": None, "app": None}
-    if head.startswith("not detected"):
+    if head.startswith(("not detected", "platform not detected")):
         report["platform"] = "ask"
     else:
         for label, platform in PLATFORMS.items():
@@ -208,7 +212,7 @@ def parse_report(text):
         report["side"] = "apple"
     if "app not known" in lower:
         report["app"] = "ask"
-    report["react"] = "(react)" in lower
+    report["react"] = bool(re.search(r"\(react\b", lower))
     # The skill is told to write "no XCOR RUM SDK found", but models reword it ("no
     # Gradle `io.embrace` entry found"), so any "no ... found" clause before the
     # evidence counts.
@@ -217,20 +221,29 @@ def parse_report(text):
 
 
 # Short parentheses that qualify the platform rather than give evidence.
-QUALIFIER = re.compile(r"(no )?react|expo|ios|ipados|tvos|watchos|macos|native", re.I)
+# A parenthesis that qualifies the platform, such as "(React)", "(Expo SDK 52)" or
+# "(tvOS)": short, and with none of the characters a file reference or a quote has.
+QUALIFIER = re.compile(r"[^`:/.\"']{1,24}")
+# Where evidence starts when it isn't in parentheses.
+EVIDENCE_START = re.compile(r"\s+-\s|;|:\s|\.\s")
 
 
 def split_claim(line):
     """Return the claim part of a `**Platform:**` line, without its evidence.
 
-    The evidence is the first parenthesis that isn't a short qualifier such as
-    "(React)", "(Expo)" or "(tvOS)". Only the claim is parsed, so evidence such as
-    "nothing about the Android side" can't change the answer.
+    The evidence starts at the first parenthesis that isn't a short qualifier, or at a
+    " - ", ";", ": " or ". " outside parentheses, whichever comes first. Only the claim
+    is parsed, so evidence such as "nothing about the Android side" can't change the
+    answer.
     """
+    end = len(line)
     for match in re.finditer(r"\s\(([^()]*)\)?", line):
         if not QUALIFIER.fullmatch(match.group(1).strip()):
-            return line[: match.start()]
-    return line
+            end = match.start()
+            break
+    unparenthesized = re.sub(r"\([^()]*\)", lambda m: " " * len(m.group(0)), line[:end])
+    cut = EVIDENCE_START.search(unparenthesized)
+    return line[: cut.start()] if cut else line[:end]
 
 
 def rescore(corpus, results_path, model):
@@ -389,36 +402,49 @@ def run(corpus, corpus_dir, model, jobs, out_path, only, timeout):
 
 
 def run_cases(corpus, cases, corpus_dir, model, jobs, config_dir, timeout, results):
-    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = {
-            pool.submit(
-                run_case,
-                case,
-                corpus["prompts"][case["prompt"]],
-                corpus_dir,
-                model,
-                config_dir,
-                timeout,
-            ): case
-            for case in cases
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
+    try:
+        collect_cases(
+            pool, corpus, cases, corpus_dir, model, config_dir, timeout, results
+        )
+    except BaseException:
+        # On an interrupt, don't start the queued sessions: each one costs money and
+        # its result would never be written.
+        pool.shutdown(wait=True, cancel_futures=True)
+        raise
+    pool.shutdown(wait=True)
+
+
+def collect_cases(pool, corpus, cases, corpus_dir, model, config_dir, timeout, results):
+    futures = {
+        pool.submit(
+            run_case,
+            case,
+            corpus["prompts"][case["prompt"]],
+            corpus_dir,
+            model,
+            config_dir,
+            timeout,
+        ): case
+        for case in cases
+    }
+    for future in concurrent.futures.as_completed(futures):
+        case = futures[future]
+        outcome = future.result()
+        report = parse_report(outcome["result"])
+        if outcome.get("error"):
+            verdict, notes = "error", [outcome["error"]]
+        else:
+            verdict, notes = score(case["expect"], report)
+        row = {
+            "case": case_id(case),
+            "verdict": verdict,
+            "notes": notes,
+            "report": report["line"] if report else None,
+            **outcome,
         }
-        for future in concurrent.futures.as_completed(futures):
-            case = futures[future]
-            outcome = future.result()
-            report = parse_report(outcome["result"])
-            if outcome.get("error"):
-                verdict, notes = "error", [outcome["error"]]
-            else:
-                verdict, notes = score(case["expect"], report)
-            row = {
-                "case": case_id(case),
-                "verdict": verdict,
-                "notes": notes,
-                "report": report["line"] if report else None,
-                **outcome,
-            }
-            results.append(row)
-            print(f"{verdict:9} {row['case']:45} {row['report']}", flush=True)
+        results.append(row)
+        print(f"{verdict:9} {row['case']:45} {row['report']}", flush=True)
 
 
 def print_summary(results, model):
