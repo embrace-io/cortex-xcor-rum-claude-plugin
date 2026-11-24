@@ -6,7 +6,8 @@
 # MCP server tools), then returns `canonical_answer`. If any `escalate_if`
 # condition holds, route to XCOR RUM support with a filled-in `escalation_template`.
 #
-# Scope: Android and the Android side of React Native. Apple-only patterns live in
+# Scope: Android and the Android side of React Native. SKILL.md's Unity apps section
+# says how entries apply to the Android side of Unity apps. Apple-only patterns live in
 # the apple-doctor skill. The FCM entry covers Android, iOS and React Native, and
 # only this index has it.
 #

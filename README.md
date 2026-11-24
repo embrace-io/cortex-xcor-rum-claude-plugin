@@ -43,15 +43,18 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 | Skill | What it covers |
 | :- | :- |
 | `/cortex-xcor-rum:apple-doctor` | Troubleshoots XCOR RUM SDK integration issues on Apple platforms (iOS, tvOS and watchOS), including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
-| `/cortex-xcor-rum:android-doctor` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
+| `/cortex-xcor-rum:android-doctor` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native and Unity apps, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
+| `/cortex-xcor-rum:doctor` | The one command for diagnosing an XCOR RUM SDK problem whatever your platform. It detects your app's platform with `platform-discovery`, then runs that platform's doctor skill. Where the plugin has no doctor for your platform yet (web, and the Android side of Flutter apps), it says so and points you to support. Type the full `/cortex-xcor-rum:doctor`: a bare `/doctor` runs Claude Code's own setup checkup. |
+| `/cortex-xcor-rum:platform-discovery` | Works out which XCOR RUM SDK platform your app uses (Android, Apple, React Native, Flutter, Unity or web) from your codebase, and from your app's data when you give an App ID, then hands your request to the skill for that platform. Claude can load it on its own when a request needs the platform. Where the plugin has no skill for your platform yet, it says so and points you to support. It asks you only when the evidence doesn't settle the platform, such as which side of a React Native app has the problem. |
 
-Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
+`apple-doctor` and `android-doctor` match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
 
 ## Example prompts
 
 Call a skill by name and describe the problem:
 
 ```text
+/cortex-xcor-rum:doctor data stopped arriving in XCOR RUM after our last release
 /cortex-xcor-rum:apple-doctor crashes aren't symbolicated since we moved to Xcode Cloud
 /cortex-xcor-rum:android-doctor NDK crashes stopped after upgrading to 7.x
 ```
@@ -62,7 +65,12 @@ Or describe the problem in plain language and let Claude pick the skill:
 Crashes stopped showing up in the XCOR RUM dashboard for our iOS app.
 Mapping file upload fails on CI after our AGP 8 upgrade.
 Our React Native app has sessions on iOS but none on Android.
+Data stopped arriving in XCOR RUM after our last release.
 ```
+
+The last prompt names no platform. Claude can then load `doctor`, which finds the platform with `platform-discovery` before it hands off to that platform's doctor.
+
+A skill also runs by its short name, such as `/apple-doctor`, when no other command has that name. `doctor` is the exception: `/doctor` is Claude Code's own setup checkup, so use `/cortex-xcor-rum:doctor`.
 
 ## Troubleshooting
 
