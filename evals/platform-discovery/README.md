@@ -44,10 +44,12 @@ python3 evals/platform-discovery/run.py run --corpus-dir /path/outside/the/plugi
 
 Measured on 2026-11-24 with Claude Code 2.1.331, against the skill text committed with this README. Each model ran the 33 cases once:
 
-| Model | Right | Asked | Wrong | Cost | Mean time per case | Mean tool calls |
-| :- | -: | -: | -: | -: | -: | -: |
-| Sonnet (`claude-sonnet-5-5`) | 33 | 0 | 0 | $1.44 | 10 s | 5.2 |
-| Opus (`claude-opus-5-5`) | 33 | 0 | 0 | $2.99 | 13 s | 3.7 |
+| Model | Right | Asked | Wrong | No report | Cost | Mean time per case | Mean tool calls |
+| :- | -: | -: | -: | -: | -: | -: | -: |
+| Sonnet (`claude-sonnet-5-5`) | 32 | 0 | 0 | 1 | $1.58 | 10 s | 4.9 |
+| Opus (`claude-opus-5-5`) | 33 | 0 | 0 | 0 | $3.20 | 12 s | 3.4 |
+
+The Sonnet run with no report, `ecommerce-android/generic`, named the platform correctly in prose (native Android, from the `io.embrace.gradle` plugin) but tried to hand off before writing the `**Platform:**` line, and these sessions have no Skill tool. Three reruns of that case were all right. The same slip appears in interactive hand-offs, where the routing is still correct.
 
 Earlier rounds and reviews found gaps in the skill, each fixed before these results:
 
@@ -56,4 +58,4 @@ Earlier rounds and reviews found gaps in the skill, each fixed before these resu
 - A session started inside a cross-platform app's native folder (`android/`, `android/app/`, its Kotlin source, or `ios/`) could read as a native app. The skill now checks those folders and their parents up to the `android` or `ios` folder for the Flutter, React Native and Unity markers they hold, such as `dev.flutter.flutter-gradle-plugin` or `use_react_native!`, before it trusts a native import.
 - Two Sonnet runs asked the right question but wrote the wrong label: `not detected` in `multi-app`, and a Unity line with no side. The skill now says to write `app not known` when several apps are found, and that a React Native, Flutter or Unity line always names the side or says `side not known`.
 
-The corpus is small. 33 of 33 shows the rules handle these layouts. It doesn't put a bound on the error rate for projects unlike them.
+The corpus is small. These results show the rules handle these layouts. It doesn't put a bound on the error rate for projects unlike them.
