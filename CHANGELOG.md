@@ -19,6 +19,7 @@ First release of the consolidated plugin.
 
 ### Changed
 
+- `android-doctor` covers the Android side of Unity apps. It adapts its fixes to Unity: the SDK starts from C#, and Gradle, manifest and configuration fixes go in `Assets/Plugins/Android/` and the Unity Editor settings, not the exported project that Unity regenerates.
 - Replaces the `embrace-doctor-ios` and `embrace-doctor-android` plugins with the single `cortex-xcor-rum` plugin, and renames the marketplace from `embrace-claude-plugin` to `cortex-xcor-rum`.
 - The marketplace, plugin and skills name the product Cortex XCOR RUM (formerly Embrace).
 - Knowledge bases for both doctor skills: `MCP_SKILL_QA_INDEX.yaml` (24 Apple entries, 12 Android entries) beside each `SKILL.md`.
