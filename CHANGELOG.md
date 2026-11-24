@@ -9,6 +9,7 @@ First release of the consolidated plugin.
 ### Added
 
 - One `cortex-xcor-rum` plugin with the `apple-doctor` and `android-doctor` skills, invoked as `/cortex-xcor-rum:apple-doctor` and `/cortex-xcor-rum:android-doctor`. `apple-doctor` covers iOS, tvOS and watchOS apps.
+- The `doctor` skill, invoked as `/cortex-xcor-rum:doctor`: one command that detects the app's platform with `platform-discovery` and runs that platform's doctor skill. A bare `/doctor` runs Claude Code's own setup checkup, so the README says to type the full command.
 - The `platform-discovery` skill, invoked as `/cortex-xcor-rum:platform-discovery`. It detects an app's platform (Android, Apple, React Native, Flutter, Unity or web) from the codebase, and from XCOR RUM app data when an App ID is known, then hands the request to that platform's skill. It asks the user only when the evidence doesn't settle the platform or, for a React Native, Flutter or Unity app, the side. Where the plugin has no skill for the platform yet, it says so and points to support.
 - The plugin bundles the XCOR RUM MCP server (`https://mcp.embrace.io/mcp`, OAuth) in `.mcp.json`.
 - A listing icon at `.claude-plugin/icon.png`: the Cortex XCOR mark on a dark 1024 px square.

@@ -1,6 +1,6 @@
 ---
 name: platform-discovery
-description: Use when the user asks for help with a Cortex XCOR RUM (formerly Embrace) SDK problem or task without saying which platform their app runs on, for example "data stopped arriving in XCOR RUM after our release," "sessions are missing since our last release," "my XCOR RUM integration isn't working," or "which XCOR RUM SDK does this project use?" Detects the app's platform (Android, Apple, React Native, Flutter, Unity or web) from the user's codebase and, when an App ID is known, from their XCOR RUM app data. Asks the user only when that evidence doesn't settle it, then hands off to the plugin's skill for that platform, or says so when the plugin has none yet. Not needed when the user names the platform or calls a platform skill such as `/cortex-xcor-rum:apple-doctor` directly.
+description: Use when a Cortex XCOR RUM (formerly Embrace) SDK task needs the app's platform and the user hasn't said which platform their app runs on, for example "which XCOR RUM SDK does this project use?", "is this a React Native or a native app?", or a request that one of the plugin's platform skills covers. To diagnose a problem, use `/cortex-xcor-rum:doctor`, which calls this skill. Detects the app's platform (Android, Apple, React Native, Flutter, Unity or web) from the user's codebase and, when an App ID is known, from their XCOR RUM app data. Asks the user only when that evidence doesn't settle it, then hands off to the plugin's skill for that platform, or says so when the plugin has none yet. Not needed when the user names the platform or calls a platform skill such as `/cortex-xcor-rum:apple-doctor` directly.
 disallowed-tools: Bash, Edit, Write, NotebookEdit, WebFetch, Agent
 ---
 
@@ -66,16 +66,17 @@ Decide two things:
 
 7. **Check for more than one app.** If step 2 found separate projects for different platforms, such as `apps/ios/` and `apps/web/`, and the user's words don't pick one, ask which app the problem is in. A project whose only signals are inside a React Native, Flutter or Unity app's `android/` and `ios/` folders is one app, not two. When only one of the projects has a strong signal (step 3), that project is the app with XCOR RUM, so use it without asking. Ignore a project with no signal of any kind, such as a backend service.
 
-8. **Report, and ask when needed.** Start the reply with one line in this form, so the user can correct it. Write it before anything else, even when the hand-off in step 9 fails:
+8. **Report, and ask when needed.** Start the reply with one line in this form, so the user can correct it. Write it as text before anything else, including before you load another skill in step 9, and even when that hand-off fails:
 
    `**Platform:** <Android | Apple | React Native | Flutter | Unity | Web>[ (React)][, <Android | Apple> side][, no XCOR RUM SDK found] (<the file and line, or the user's words, that decided it>)`
 
    When the side or the app isn't settled, write `side not known` or `app not known` in place of the side, and ask one short question with the choices, for example "This is a React Native app. Is the problem on Android, iOS, or both?" When both the app and its side are open, ask both in that one question. When nothing identifies the platform, write `**Platform:** not detected` and ask which platform the app is on. Never guess a platform or a side to avoid asking.
 
 9. **Hand off.** Pick the skill for the platform from the `cortex-xcor-rum` skills listed as available in this session, whose names start with the platform: `android-`, `apple-`, `react-native-`, `flutter-`, `unity-` or `web-`. Read each candidate's description and choose the one that fits the user's task. Don't search the filesystem for skills: the session's skill list is the set you can load.
-   - For React Native, Flutter and Unity, prefer a skill with that platform's own prefix. If there is none, use the side's skill (`android-` or `apple-`) when its description says it covers that platform's side.
+   - If the user only asked about the platform or the SDK ("which XCOR RUM SDK does this project use?"), answer from what you found and stop. Hand off only when the request is a task for one of the platform skills, such as a problem to diagnose.
+   - For React Native, Flutter and Unity, prefer a skill with that platform's own prefix. If there is none, use the side's skill (`android-` or `apple-`) only when its description names that framework. A description that lists the frameworks it covers doesn't cover the others: `android-doctor` names native Android and React Native, so it doesn't cover the Android side of a Flutter or Unity app, and that case has no doctor yet.
    - When the user says the problem is on both sides and no skill has the platform's own prefix, start with one side's skill and tell the user you'll check the other side's next.
-   - Load the chosen skill with the user's original request and the platform you found, and let it take over.
+   - Load the chosen skill with the user's original request and the platform you found, and let it take over. Hand off even when the request names no problem, such as "run the doctor": the chosen skill asks for what it needs.
    - If no skill covers the platform and the task, say so plainly, and point the user to their XCOR RUM tech-support Slack channel if they have one, otherwise the [XCOR RUM community Slack](https://community.embrace.io) or [xcorsupport@paloaltonetworks.com](mailto:xcorsupport@paloaltonetworks.com). Don't answer the SDK question from general knowledge.
 
 ## Hard rules
