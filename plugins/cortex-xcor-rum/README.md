@@ -11,6 +11,6 @@ claude plugin install cortex-xcor-rum@cortex-xcor-rum
 
 After you install the plugin, run `/mcp` and sign in to `plugin:cortex-xcor-rum:xcor-rum` (or the name you gave it, if you added the server yourself) with your XCOR RUM account.
 
-The current skills are `/cortex-xcor-rum:apple-doctor` and `/cortex-xcor-rum:android-doctor`, which troubleshoot SDK integration issues on each platform.
+The current skills are `/cortex-xcor-rum:apple-doctor` and `/cortex-xcor-rum:android-doctor`, which troubleshoot SDK integration issues on each platform, and `/cortex-xcor-rum:apple-migrate-6-to-7`, which migrates an Apple platform app from SDK 6.x to 7.x and builds it to verify.
 
 See the [repository README](https://github.com/embrace-io/cortex-xcor-rum-claude-plugin#readme) for sign-in, example prompts, troubleshooting and update steps.

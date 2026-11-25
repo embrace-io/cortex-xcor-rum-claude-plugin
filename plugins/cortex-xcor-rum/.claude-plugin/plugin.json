@@ -12,5 +12,5 @@
   "repository": "https://github.com/embrace-io/cortex-xcor-rum-claude-plugin",
   "license": "Apache-2.0",
   "privacyPolicyUrl": "https://embrace.io/docs/privacy-policy",
-  "keywords": ["xcor-rum", "embrace", "rum", "mobile", "apple", "ios", "tvos", "watchos", "android", "sdk", "mcp", "observability", "troubleshooting", "crash-reporting"]
+  "keywords": ["xcor-rum", "embrace", "rum", "mobile", "apple", "ios", "tvos", "watchos", "android", "sdk", "mcp", "observability", "troubleshooting", "crash-reporting", "migration"]
 }
