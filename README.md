@@ -42,8 +42,8 @@ The plugin holds all of our Claude skills. Each skill runs as `/cortex-xcor-rum:
 
 | Skill | What it covers |
 | :- | :- |
-| `/cortex-xcor-rum:doctor-ios` | Troubleshoots XCOR RUM SDK integration issues on iOS, including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
-| `/cortex-xcor-rum:doctor-android` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
+| `/cortex-xcor-rum:apple-doctor` | Troubleshoots XCOR RUM SDK integration issues on Apple platforms (iOS, tvOS and watchOS), including the iOS side of React Native, Flutter and Unity apps, such as unsymbolicated crashes, missing crashes, uncaptured network calls, build failures after an upgrade, and dSYM upload failures. |
+| `/cortex-xcor-rum:android-doctor` | Troubleshoots XCOR RUM SDK integration issues on native Android and the Android side of React Native, such as missing NDK crashes, failed mapping uploads, a stripped `embrace-config.json`, dependency conflicts, and missing sessions. |
 | `/cortex-xcor-rum:apple-migrate-6-to-7` | Migrates an Apple platform app from the XCOR RUM Apple SDK 6.x to 7.x. It rewrites every 6.x call site, removes the dropped crash products, asks before changing anything that has no 7.x replacement, builds the project, and lists the behavior changes that compile cleanly, such as the new session model. |
 
 Both doctor skills match your problem against a catalog of recurring tech-support patterns. They check your codebase and your app's data from the MCP server, then return a diagnosis, a fix, or an escalation package for XCOR RUM support. Each one sends issues for the other platform to its counterpart.
@@ -55,8 +55,8 @@ The migration skill edits your code and runs your build (`xcodebuild`, `swift bu
 Call a skill by name and describe the problem:
 
 ```text
-/cortex-xcor-rum:doctor-ios crashes aren't symbolicated since we moved to Xcode Cloud
-/cortex-xcor-rum:doctor-android NDK crashes stopped after upgrading to 7.x
+/cortex-xcor-rum:apple-doctor crashes aren't symbolicated since we moved to Xcode Cloud
+/cortex-xcor-rum:android-doctor NDK crashes stopped after upgrading to 7.x
 /cortex-xcor-rum:apple-migrate-6-to-7
 ```
 
@@ -81,7 +81,7 @@ Upgrade this app from the Embrace Apple SDK 6 to 7.
 
 ## Get help
 
-If a doctor skill escalates or you have a question it can't answer, send the escalation package to your XCOR RUM tech-support Slack channel if you have one. Otherwise, ask in the [XCOR RUM community Slack](https://community.embrace.io) or email [sg-observability-sales-engineering@paloaltonetworks.com](mailto:sg-observability-sales-engineering@paloaltonetworks.com).
+If a doctor skill escalates or you have a question it can't answer, send the escalation package to your XCOR RUM tech-support Slack channel if you have one. Otherwise, ask in the [XCOR RUM community Slack](https://community.embrace.io) or email [xcorsupport@paloaltonetworks.com](mailto:xcorsupport@paloaltonetworks.com).
 
 ## Update and uninstall
 

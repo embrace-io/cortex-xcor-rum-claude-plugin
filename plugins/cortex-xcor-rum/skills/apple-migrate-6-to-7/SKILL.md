@@ -1,6 +1,6 @@
 ---
 name: apple-migrate-6-to-7
-description: 'Use when the user wants to upgrade an iOS, tvOS, macOS or watchOS app from the Cortex XCOR RUM (formerly Embrace) Apple SDK 6.x to 7.x, or when the build breaks after bumping the SDK to 7.x, for example "migrate this app from Embrace 6 to 7," "upgrade the XCOR RUM SDK to 7.1," "cannot find ''Embrace'' in scope," "value of type ''EmbraceIO'' has no member ''buildSpan''," "type ''EmbraceIO'' has no member ''setup''," "no such module ''EmbraceCrash''," "Missing package product ''EmbraceCrash''," or "extra trailing closure / try expression errors after the Embrace update." Inventories every 6.x call site in the codebase, applies the verified 6.x to 7.x API mappings, flags removals that have no replacement, and builds the project to verify. Other iOS integration issues are covered by `/cortex-xcor-rum:doctor-ios`.'
+description: 'Use when the user wants to upgrade an iOS, tvOS, macOS or watchOS app from the Cortex XCOR RUM (formerly Embrace) Apple SDK 6.x to 7.x, or when the build breaks after bumping the SDK to 7.x, for example "migrate this app from Embrace 6 to 7," "upgrade the XCOR RUM SDK to 7.1," "cannot find ''Embrace'' in scope," "value of type ''EmbraceIO'' has no member ''buildSpan''," "type ''EmbraceIO'' has no member ''setup''," "no such module ''EmbraceCrash''," "Missing package product ''EmbraceCrash''," or "extra trailing closure / try expression errors after the Embrace update." Inventories every 6.x call site in the codebase, applies the verified 6.x to 7.x API mappings, flags removals that have no replacement, and builds the project to verify. Other iOS integration issues are covered by `/cortex-xcor-rum:apple-doctor`.'
 allowed-tools: Read(//**/skills/apple-migrate-6-to-7/API_MAPPING.md)
 ---
 
@@ -132,11 +132,11 @@ The package has three parts:
 - **What I found:** the call sites involved, with file paths and line numbers.
 - **Why I'm escalating:** which condition above holds.
 
-Tell the user to send it to their XCOR RUM tech-support Slack channel if they have one, otherwise to the [XCOR RUM community Slack](https://community.embrace.io) or [sg-observability-sales-engineering@paloaltonetworks.com](mailto:sg-observability-sales-engineering@paloaltonetworks.com).
+Tell the user to send it to their XCOR RUM tech-support Slack channel if they have one, otherwise to the [XCOR RUM community Slack](https://community.embrace.io) or [xcorsupport@paloaltonetworks.com](mailto:xcorsupport@paloaltonetworks.com).
 
 ## What this skill does NOT do
 
 - Cover the Android, React Native, Flutter or Unity SDKs.
 - Cover the 5.x to 6.x migration.
 - Upgrade unrelated dependencies or fix pre-existing build errors. Note them and continue if possible, otherwise stop and report them.
-- Diagnose SDK integration issues that aren't part of the 7.x upgrade. Send those to `/cortex-xcor-rum:doctor-ios`.
+- Diagnose SDK integration issues that aren't part of the 7.x upgrade. Send those to `/cortex-xcor-rum:apple-doctor`.
